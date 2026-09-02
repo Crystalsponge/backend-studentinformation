@@ -37,3 +37,9 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### SIMS ###
+# FileService atomic-write temp files
+*.tmp
+# Uncomment to ignore runtime data (keep if you want sample data committed)
+# data/

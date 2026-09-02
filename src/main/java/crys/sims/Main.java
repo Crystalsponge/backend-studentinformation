@@ -1,17 +1,50 @@
 package crys.sims;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+import crys.sims.model.AcademicRecord;
+import crys.sims.model.Department;
+import crys.sims.model.Enrollment;
+import crys.sims.model.Faculty;
+import crys.sims.model.Student;
+import crys.sims.model.Subject;
+import crys.sims.service.FileService;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+
 public class Main {
     static void main() {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        IO.println(String.format("Hello and welcome!"));
+        // File-backed storage paths (data/ folder)
+        Path studentsPath = Paths.get("data/students.txt");
+        Path subjectsPath = Paths.get("data/subjects.txt");
+        Path facultiesPath = Paths.get("data/faculties.txt");
+        Path departmentsPath = Paths.get("data/departments.txt");
+        Path enrollmentsPath = Paths.get("data/enrollments.txt");
+        Path recordsPath = Paths.get("data/academic_records.txt");
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            IO.println("i = " + i);
+        try {
+            List<Student> students = FileService.loadStudents(studentsPath);
+            List<Subject> subjects = FileService.loadSubjects(subjectsPath);
+            List<Faculty> faculties = FileService.loadFaculties(facultiesPath);
+            List<Department> departments = FileService.loadDepartments(departmentsPath);
+            List<Enrollment> enrollments = FileService.loadEnrollments(enrollmentsPath);
+            List<AcademicRecord> records = FileService.loadAcademicRecords(recordsPath);
+
+            IO.println("SIMS loaded: "
+                    + students.size() + " students, "
+                    + subjects.size() + " subjects, "
+                    + faculties.size() + " faculties, "
+                    + departments.size() + " departments, "
+                    + enrollments.size() + " enrollments, "
+                    + records.size() + " records.");
+
+            // TODO: instantiate controllers with loaded lists + FileService paths
+            // TODO: launch MainView (console CLI menu loop)
+            IO.println("Controllers/Views not yet implemented — data layer ready.");
+
+        } catch (Exception e) {
+            IO.println("Failed to load data: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

@@ -1,6 +1,6 @@
 package crys.sims.model.enums;
 
-public enum Grade {
+public enum GRADE {
     A_PLUS(4.0),
     A(4.0),
     A_MINUS(3.7),
@@ -14,7 +14,7 @@ public enum Grade {
 
     private final double gpaValue;
 
-    Grade(double gpaValue) {
+    GRADE(double gpaValue) {
         this.gpaValue = gpaValue;
     }
 
@@ -22,11 +22,11 @@ public enum Grade {
         return gpaValue;
     }
 
-    public static Grade fromString(String s) {
+    public static GRADE fromString(String s) {
         if (s == null) return null;
         String normalized = s.trim().toUpperCase().replace("+", "_PLUS").replace("-", "_MINUS");
         try {
-            return Grade.valueOf(normalized);
+            return GRADE.valueOf(normalized);
         } catch (IllegalArgumentException e) {
             return null;
         }

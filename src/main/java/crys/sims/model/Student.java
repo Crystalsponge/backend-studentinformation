@@ -1,38 +1,35 @@
 package crys.sims.model;
 
-import crys.sims.model.enums.Gender;
+import crys.sims.model.enums.GENDER;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Student {
     private String id;
     private String firstName;
     private String lastName;
-    private Gender gender;
+    private GENDER gender;
     private LocalDate dateOfBirth;
     private String department;
     private String program;
     private int yearLevel;
-    private int currentSemester;
+    private String currentSemester;
     private LocalDate enrollmentDate;
     private String email;
     private String phone;
     private boolean active;
-    private int currentCredit;
-    private List<String> enrolledSubjects;
+    private int earnedCredits;
 
     public Student() {
-        this.enrolledSubjects = new ArrayList<>();
         this.active = true;
+        this.earnedCredits = 0;
     }
 
-    public Student(String id, String firstName, String lastName, Gender gender,
+    public Student(String id, String firstName, String lastName, GENDER gender,
                    LocalDate dateOfBirth, String department, String program,
-                   int yearLevel, int currentSemester, LocalDate enrollmentDate,
+                   int yearLevel, String currentSemester, LocalDate enrollmentDate,
                    String email, String phone, boolean active,
-                   int currentCredit, List<String> enrolledSubjects) {
+                   int earnedCredits) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -46,8 +43,7 @@ public class Student {
         this.email = email;
         this.phone = phone;
         this.active = active;
-        this.currentCredit = currentCredit;
-        this.enrolledSubjects = enrolledSubjects != null ? enrolledSubjects : new ArrayList<>();
+        this.earnedCredits = earnedCredits;
     }
 
     public String getId() {
@@ -78,11 +74,11 @@ public class Student {
         return firstName + " " + lastName;
     }
 
-    public Gender getGender() {
+    public GENDER getGender() {
         return gender;
     }
 
-    public void setGender(Gender gender) {
+    public void setGender(GENDER gender) {
         this.gender = gender;
     }
 
@@ -118,11 +114,11 @@ public class Student {
         this.yearLevel = yearLevel;
     }
 
-    public int getCurrentSemester() {
+    public String getCurrentSemester() {
         return currentSemester;
     }
 
-    public void setCurrentSemester(int currentSemester) {
+    public void setCurrentSemester(String currentSemester) {
         this.currentSemester = currentSemester;
     }
 
@@ -158,20 +154,12 @@ public class Student {
         this.active = active;
     }
 
-    public int getCurrentCredit() {
-        return currentCredit;
+    public int getEarnedCredits() {
+        return earnedCredits;
     }
 
-    public void setCurrentCredit(int currentCredit) {
-        this.currentCredit = currentCredit;
-    }
-
-    public List<String> getEnrolledSubjects() {
-        return enrolledSubjects;
-    }
-
-    public void setEnrolledSubjects(List<String> enrolledSubjects) {
-        this.enrolledSubjects = enrolledSubjects;
+    public void setEarnedCredits(int earnedCredits) {
+        this.earnedCredits = earnedCredits;
     }
 
     @Override
@@ -184,10 +172,10 @@ public class Student {
                 ", department='" + department + '\'' +
                 ", program='" + program + '\'' +
                 ", yearLevel=" + yearLevel +
-                ", currentSemester=" + currentSemester +
+                ", currentSemester='" + currentSemester + '\'' +
                 ", email='" + email + '\'' +
                 ", active=" + active +
-                ", enrolledSubjects=" + enrolledSubjects +
+                ", earnedCredits=" + earnedCredits +
                 '}';
     }
 }

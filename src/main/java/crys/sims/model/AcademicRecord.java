@@ -1,17 +1,17 @@
 package crys.sims.model;
 
-import crys.sims.model.enums.Grade;
+import crys.sims.model.enums.GRADE;
 
 public class AcademicRecord {
     private String studentId;
     private String subjectId;
     private String semester;
-    private Grade grade;
+    private GRADE grade;
 
     public AcademicRecord() {
     }
 
-    public AcademicRecord(String studentId, String subjectId, String semester, Grade grade) {
+    public AcademicRecord(String studentId, String subjectId, String semester, GRADE grade) {
         this.studentId = studentId;
         this.subjectId = subjectId;
         this.semester = semester;
@@ -42,11 +42,11 @@ public class AcademicRecord {
         this.semester = semester;
     }
 
-    public Grade getGrade() {
+    public GRADE getGrade() {
         return grade;
     }
 
-    public void setGrade(Grade grade) {
+    public void setGrade(GRADE grade) {
         this.grade = grade;
     }
 
