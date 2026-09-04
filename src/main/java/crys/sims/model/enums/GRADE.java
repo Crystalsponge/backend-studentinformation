@@ -1,5 +1,10 @@
 package crys.sims.model.enums;
 
+/**
+ * Letter grades with GPA point values.
+ * Note: A_PLUS and A intentionally share 4.0 points — they are distinct
+ * letters on the transcript but contribute equally to GPA calculation.
+ */
 public enum GRADE {
     A_PLUS(4.0),
     A(4.0),

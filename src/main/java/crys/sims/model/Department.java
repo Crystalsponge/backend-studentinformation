@@ -1,5 +1,9 @@
 package crys.sims.model;
 
+/**
+ * Authoritative owner of the Faculty—Department relation via facultyId.
+ * Faculty.departmentIds mirrors this and must be kept in sync by FacultyController.
+ */
 public class Department {
     private String id;
     private String name;
@@ -36,6 +40,19 @@ public class Department {
 
     public void setFacultyId(String facultyId) {
         this.facultyId = facultyId;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Department that = (Department) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
     }
 
     @Override

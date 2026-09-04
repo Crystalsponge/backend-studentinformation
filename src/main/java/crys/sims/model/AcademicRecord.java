@@ -51,6 +51,21 @@ public class AcademicRecord {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AcademicRecord that = (AcademicRecord) o;
+        return java.util.Objects.equals(studentId, that.studentId)
+                && java.util.Objects.equals(subjectId, that.subjectId)
+                && java.util.Objects.equals(semester, that.semester);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(studentId, subjectId, semester);
+    }
+
+    @Override
     public String toString() {
         return "AcademicRecord{" +
                 "studentId='" + studentId + '\'' +

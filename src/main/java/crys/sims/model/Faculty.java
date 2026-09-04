@@ -3,6 +3,12 @@ package crys.sims.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Faculty 1—N Departments.
+ * Authoritative link is Department.facultyId; this departmentIds list is a
+ * cached mirror that FacultyController must rebuild/sync on every
+ * Department add/update/delete to avoid drift.
+ */
 public class Faculty {
     private String id;
     private String name;
@@ -39,7 +45,20 @@ public class Faculty {
     }
 
     public void setDepartmentIds(List<String> departmentIds) {
-        this.departmentIds = departmentIds;
+        this.departmentIds = departmentIds != null ? departmentIds : new ArrayList<>();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Faculty faculty = (Faculty) o;
+        return id != null && id.equals(faculty.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
     }
 
     @Override

@@ -3,6 +3,10 @@ package crys.sims.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * department holds the Department id (e.g. "D001"), matching Student.department,
+ * so suggestion and hierarchy filters can compare directly to Department.id.
+ */
 public class Subject {
     private String id;
     private String code;
@@ -74,7 +78,7 @@ public class Subject {
     }
 
     public void setPrerequisiteIds(List<String> prerequisiteIds) {
-        this.prerequisiteIds = prerequisiteIds;
+        this.prerequisiteIds = prerequisiteIds != null ? prerequisiteIds : new ArrayList<>();
     }
 
     public String getSemesterOffered() {
@@ -91,6 +95,19 @@ public class Subject {
 
     public void setMaxCapacity(int maxCapacity) {
         this.maxCapacity = maxCapacity;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Subject subject = (Subject) o;
+        return id != null && id.equals(subject.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
     }
 
     @Override

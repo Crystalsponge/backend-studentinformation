@@ -2,20 +2,24 @@ package crys.sims.model;
 
 import java.time.LocalDate;
 
-public class Enrollment {
+/**
+ * One waitlist request: a student waiting for a seat in a subject offering.
+ * File-backed (data/waitlist.txt); file order is arrival order (FIFO).
+ */
+public class WaitlistEntry {
     private String studentId;
     private String subjectId;
     private String semester;
-    private LocalDate enrollmentDate;
+    private LocalDate requestDate;
 
-    public Enrollment() {
+    public WaitlistEntry() {
     }
 
-    public Enrollment(String studentId, String subjectId, String semester, LocalDate enrollmentDate) {
+    public WaitlistEntry(String studentId, String subjectId, String semester, LocalDate requestDate) {
         this.studentId = studentId;
         this.subjectId = subjectId;
         this.semester = semester;
-        this.enrollmentDate = enrollmentDate;
+        this.requestDate = requestDate;
     }
 
     public String getStudentId() {
@@ -42,19 +46,19 @@ public class Enrollment {
         this.semester = semester;
     }
 
-    public LocalDate getEnrollmentDate() {
-        return enrollmentDate;
+    public LocalDate getRequestDate() {
+        return requestDate;
     }
 
-    public void setEnrollmentDate(LocalDate enrollmentDate) {
-        this.enrollmentDate = enrollmentDate;
+    public void setRequestDate(LocalDate requestDate) {
+        this.requestDate = requestDate;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Enrollment that = (Enrollment) o;
+        WaitlistEntry that = (WaitlistEntry) o;
         return java.util.Objects.equals(studentId, that.studentId)
                 && java.util.Objects.equals(subjectId, that.subjectId)
                 && java.util.Objects.equals(semester, that.semester);
@@ -67,11 +71,11 @@ public class Enrollment {
 
     @Override
     public String toString() {
-        return "Enrollment{" +
+        return "WaitlistEntry{" +
                 "studentId='" + studentId + '\'' +
                 ", subjectId='" + subjectId + '\'' +
                 ", semester='" + semester + '\'' +
-                ", enrollmentDate=" + enrollmentDate +
+                ", requestDate=" + requestDate +
                 '}';
     }
 }

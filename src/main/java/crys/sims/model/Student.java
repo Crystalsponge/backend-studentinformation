@@ -4,6 +4,12 @@ import crys.sims.model.enums.GENDER;
 
 import java.time.LocalDate;
 
+/**
+ * department holds the Department id (e.g. "D001"), not the display name,
+ * so it joins directly to Department.id and Subject.department.
+ * earnedCredits is a cached total derived from AcademicRecord + Subject.credits;
+ * GradeController must recalculate and sync it on every grade assignment.
+ */
 public class Student {
     private String id;
     private String firstName;
@@ -71,7 +77,10 @@ public class Student {
     }
 
     public String getFullName() {
-        return firstName + " " + lastName;
+        String fn = firstName == null ? "" : firstName;
+        String ln = lastName == null ? "" : lastName;
+        String full = (fn + " " + ln).trim();
+        return full;
     }
 
     public GENDER getGender() {
@@ -163,17 +172,33 @@ public class Student {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Student student = (Student) o;
+        return id != null && id.equals(student.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
+    }
+
+    @Override
     public String toString() {
         return "Student{" +
                 "id='" + id + '\'' +
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", gender=" + gender +
+                ", dateOfBirth=" + dateOfBirth +
                 ", department='" + department + '\'' +
                 ", program='" + program + '\'' +
                 ", yearLevel=" + yearLevel +
                 ", currentSemester='" + currentSemester + '\'' +
+                ", enrollmentDate=" + enrollmentDate +
                 ", email='" + email + '\'' +
+                ", phone='" + phone + '\'' +
                 ", active=" + active +
                 ", earnedCredits=" + earnedCredits +
                 '}';
