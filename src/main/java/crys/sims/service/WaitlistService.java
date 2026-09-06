@@ -69,6 +69,16 @@ public class WaitlistService {
         return n;
     }
 
+    public int sizeTotal(String subjectId) {
+        int n = 0;
+        for (int i = 0; i < queue.size(); i++) {
+            if (subjectId.equals(queue.get(i).getSubjectId())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     public WaitlistEntry admit(String subjectId, String semester) throws IOException {
         final WaitlistEntry head = peekHead(subjectId, semester);
         if (head == null) return null;

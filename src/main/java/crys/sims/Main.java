@@ -1,6 +1,7 @@
 package crys.sims;
 
 import crys.sims.controller.StudentController;
+import crys.sims.controller.SubjectController;
 import crys.sims.model.AcademicRecord;
 import crys.sims.model.Department;
 import crys.sims.model.Enrollment;
@@ -68,7 +69,9 @@ public class Main {
             try (Scanner scanner = new Scanner(System.in)) {
                 StudentController studentController = new StudentController(students, studentsPath, records, subjects);
                 StudentView studentView = new StudentView(studentController, scanner);
-                SubjectView subjectView = new SubjectView(subjects, subjectsPath, enrollments, scanner);
+                SubjectController subjectController = new SubjectController(subjects, subjectsPath,
+                        enrollments, records, waitlist);
+                SubjectView subjectView = new SubjectView(subjectController, scanner);
                 FacultyView facultyView = new FacultyView(faculties, facultiesPath,
                         departments, departmentsPath, subjects, enrollments, scanner);
                 EnrollmentView enrollmentView = new EnrollmentView(enrollments, enrollmentsPath,
