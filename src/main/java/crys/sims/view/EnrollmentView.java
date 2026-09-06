@@ -107,7 +107,7 @@ public class EnrollmentView {
         }
         for (Map.Entry<String, Integer> entry : creditsPerSem.entrySet()) {
             System.out.println("  Semester " + entry.getKey() + ": " + entry.getValue()
-                    + " credit(s) (limit " + AcademicUtils.getMaxCreditsPerSemester() + ")");
+                    + " credit(s) (limit " + AcademicUtils.MAX_CREDITS_PER_SEMESTER + ")");
         }
     }
 

@@ -11,7 +11,6 @@ import crys.sims.model.Subject;
 import crys.sims.model.WaitlistEntry;
 import crys.sims.service.FileService;
 import crys.sims.service.WaitlistService;
-import crys.sims.utils.AcademicUtils;
 import crys.sims.view.EnrollmentView;
 import crys.sims.view.FacultyView;
 import crys.sims.view.GradeView;
@@ -21,8 +20,6 @@ import crys.sims.view.StudentView;
 import crys.sims.view.SubjectView;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -38,10 +35,8 @@ public class Main {
         Path enrollmentsPath = Paths.get("data/enrollments.txt");
         Path recordsPath = Paths.get("data/academic_records.txt");
         Path waitlistPath = Paths.get("data/waitlist.txt");
-        Path configPath = Paths.get("data/config.txt");
 
         try {
-            AcademicUtils.setMaxCreditsPerSemester(loadConfig(configPath));
             List<Student> students = FileService.loadStudents(studentsPath);
             List<Subject> subjects = FileService.loadSubjects(subjectsPath);
             List<Faculty> faculties = FileService.loadFaculties(facultiesPath);
@@ -95,40 +90,6 @@ public class Main {
             System.out.println("Failed to load data: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    private static int loadConfig(Path configPath) {
-        try {
-            if (Files.exists(configPath)) {
-                for (String line : Files.readAllLines(configPath, StandardCharsets.UTF_8)) {
-                    String t = line == null ? "" : line.trim();
-                    if (t.isEmpty() || t.startsWith("#")) continue;
-                    if (t.startsWith("maxCredits=")) {
-                        return parseMaxCredits(t.substring("maxCredits=".length()).trim(), configPath);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("WARN cannot read " + configPath
-                    + ", defaulting maxCredits to " + AcademicUtils.getMaxCreditsPerSemester());
-        }
-        return AcademicUtils.getMaxCreditsPerSemester();
-    }
-
-    private static int parseMaxCredits(String raw, Path configPath) {
-        int fallback = AcademicUtils.getMaxCreditsPerSemester();
-        int v;
-        try {
-            v = Integer.parseInt(raw);
-        } catch (NumberFormatException e) {
-            v = -1;
-        }
-        if (v < 0) {
-            System.err.println("WARN invalid maxCredits '" + raw + "' in " + configPath
-                    + ", defaulting to " + fallback);
-            return fallback;
-        }
-        return v;
     }
 
     private static void saveAll(List<Student> students, Path studentsPath,
