@@ -1,48 +1,29 @@
 package crys.sims.view;
 
-import crys.sims.model.AcademicRecord;
+import crys.sims.controller.StudentController;
 import crys.sims.model.Student;
-import crys.sims.model.Subject;
 import crys.sims.model.enums.GENDER;
-import crys.sims.service.FileService;
-import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
-import crys.sims.utils.IdGenerator;
 import crys.sims.utils.InputUtils;
-import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 /**
  * Console UI for Student CRUD + search + sort.
- * Temporary: talks directly to the in-memory list + FileService.
- * A StudentController will take over business logic later; this view keeps only I/O.
+ * I/O only: all business logic and persistence live in StudentController.
  */
 public class StudentView {
 
-    private final List<Student> students;
-    private final Path filePath;
-    private final List<AcademicRecord> records;
-    private final List<Subject> subjects;
+    private final StudentController controller;
     private final Scanner scanner;
 
-    public StudentView(List<Student> students, Path filePath,
-                       List<AcademicRecord> records, List<Subject> subjects,
-                       Scanner scanner) {
-        this.students = students;
-        this.filePath = filePath;
-        this.records = records;
-        this.subjects = subjects;
+    public StudentView(StudentController controller, Scanner scanner) {
+        this.controller = controller;
         this.scanner = scanner;
     }
 
@@ -74,59 +55,47 @@ public class StudentView {
         }
     }
 
-    // ===== Actions =====
+    // ===== Actions (I/O only) =====
 
     private void listAll() {
         FormatUtils.printHeader("ALL STUDENTS");
-        printStudents(students);
+        printStudents(controller.getAllActive());
     }
 
     private void addStudent() {
         FormatUtils.printHeader("ADD STUDENT");
         try {
-            List<String> ids = students.stream().map(Student::getId).collect(Collectors.toList());
-            String id = IdGenerator.nextId(ids, "S", 3);
-            System.out.println("Assigned ID: " + id);
-
-            String firstName = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "First name: "), "firstName");
-            String lastName = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "Last name: "), "lastName");
+            String firstName = InputUtils.readRequiredLine(scanner, "First name: ");
+            String lastName = InputUtils.readRequiredLine(scanner, "Last name: ");
             GENDER gender = InputUtils.readGender(scanner, "Gender");
             LocalDate dateOfBirth = InputUtils.readOptionalDate(scanner, "Date of birth");
-            String department = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "Department ID (e.g. D001): "), "department");
-            String program = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "Program (e.g. BSIS): "), "program");
+            String department = InputUtils.readRequiredLine(scanner, "Department ID (e.g. D001): ");
+            String program = InputUtils.readRequiredLine(scanner, "Program (e.g. BSIS): ");
             int yearLevel = InputUtils.readInt(scanner, "Year level: ", 1);
-            String semester = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "Current semester (e.g. 2024-1): "), "currentSemester");
+            String semester = InputUtils.readRequiredLine(scanner, "Current semester (e.g. 2024-1): ");
             LocalDate enrollmentDate = InputUtils.readOptionalDate(scanner, "Enrollment date");
             if (enrollmentDate == null) {
                 enrollmentDate = LocalDate.now();
                 System.out.println("  Using today: " + enrollmentDate);
             }
-            String email = ValidationUtils.requireValidEmail(
-                    InputUtils.readRequiredLine(scanner, "Email: "));
-            String phone = ValidationUtils.optionalField(
-                    InputUtils.readLine(scanner, "Phone (optional): "), "phone");
+            String email = InputUtils.readRequiredLine(scanner, "Email: ");
+            String phone = InputUtils.readLine(scanner, "Phone (optional): ");
             boolean active = InputUtils.readYesNo(scanner, "Active?", true);
 
-            Student s = new Student(id, firstName, lastName, gender, dateOfBirth,
+            Student s = controller.add(firstName, lastName, gender, dateOfBirth,
                     department, program, yearLevel, semester, enrollmentDate,
-                    email, phone, active, 0);
-            students.add(s);
-            if (save()) {
-                System.out.println("  Added student " + id);
-            }
+                    email, phone, active);
+            System.out.println("  Added student " + s.getId());
         } catch (IllegalArgumentException e) {
             System.out.println("  Invalid input: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void viewById() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student s = findById(id);
+        Student s = controller.getById(id);
         if (s == null) {
             System.out.println("  Not found: " + id);
             return;
@@ -136,136 +105,104 @@ public class StudentView {
 
     private void updateStudent() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID to update: ");
-        Student s = findById(id);
+        Student s = controller.getById(id);
         if (s == null) {
             System.out.println("  Not found: " + id);
             return;
         }
         printProfile(s);
         System.out.println("  (empty keeps current value)");
+        GENDER curGender = s.getGender();
+        int curYear = s.getYearLevel();
+        LocalDate curDob = s.getDateOfBirth();
+        LocalDate curEnrollDate = s.getEnrollmentDate();
+        boolean curActive = s.isActive();
         try {
-            // Gather + validate everything first, so a bad value aborts
-            // before any field is changed.
             String rawFirst = InputUtils.readLine(scanner, "First name [" + text(s.getFirstName()) + "]: ");
-            String newFirst = rawFirst.isEmpty() ? s.getFirstName()
-                    : ValidationUtils.cleanField(rawFirst, "firstName");
+            if (!rawFirst.isEmpty()) controller.setFirstName(id, rawFirst);
 
             String rawLast = InputUtils.readLine(scanner, "Last name [" + text(s.getLastName()) + "]: ");
-            String newLast = rawLast.isEmpty() ? s.getLastName()
-                    : ValidationUtils.cleanField(rawLast, "lastName");
+            if (!rawLast.isEmpty()) controller.setLastName(id, rawLast);
 
-            GENDER newGender = InputUtils.readOptionalGender(scanner, "Gender", s.getGender());
-            LocalDate newDob = InputUtils.readOptionalDate(scanner, "Date of birth", s.getDateOfBirth());
+            GENDER newGender = InputUtils.readOptionalGender(scanner, "Gender", curGender);
+            if (newGender != curGender) controller.setGender(id, newGender);
+
+            LocalDate newDob = InputUtils.readOptionalDate(scanner, "Date of birth", curDob);
+            if (!sameDate(newDob, curDob)) controller.setDateOfBirth(id, newDob);
 
             String rawDept = InputUtils.readLine(scanner, "Department ID [" + text(s.getDepartment()) + "]: ");
-            String newDept = rawDept.isEmpty() ? s.getDepartment()
-                    : ValidationUtils.cleanField(rawDept, "department");
+            if (!rawDept.isEmpty()) controller.setDepartment(id, rawDept);
 
             String rawProg = InputUtils.readLine(scanner, "Program [" + text(s.getProgram()) + "]: ");
-            String newProg = rawProg.isEmpty() ? s.getProgram()
-                    : ValidationUtils.cleanField(rawProg, "program");
+            if (!rawProg.isEmpty()) controller.setProgram(id, rawProg);
 
-            int newYear = InputUtils.readOptionalInt(scanner, "Year level", s.getYearLevel());
+            int newYear = InputUtils.readOptionalInt(scanner, "Year level", curYear);
+            if (newYear != curYear) controller.setYearLevel(id, newYear);
 
             String rawSem = InputUtils.readLine(scanner, "Current semester [" + text(s.getCurrentSemester()) + "]: ");
-            String newSem = rawSem.isEmpty() ? s.getCurrentSemester()
-                    : ValidationUtils.cleanField(rawSem, "currentSemester");
+            if (!rawSem.isEmpty()) controller.setCurrentSemester(id, rawSem);
 
-            LocalDate newEnrollDate = InputUtils.readOptionalDate(scanner, "Enrollment date", s.getEnrollmentDate());
+            LocalDate newEnrollDate = InputUtils.readOptionalDate(scanner, "Enrollment date", curEnrollDate);
+            if (!sameDate(newEnrollDate, curEnrollDate)) controller.setEnrollmentDate(id, newEnrollDate);
 
             String rawEmail = InputUtils.readLine(scanner, "Email [" + text(s.getEmail()) + "]: ");
-            String newEmail = rawEmail.isEmpty() ? s.getEmail()
-                    : ValidationUtils.requireValidEmail(rawEmail);
+            if (!rawEmail.isEmpty()) controller.setEmail(id, rawEmail);
 
             String rawPhone = InputUtils.readLine(scanner, "Phone [" + text(s.getPhone()) + "]: ");
-            String newPhone = rawPhone.isEmpty() ? s.getPhone()
-                    : ValidationUtils.optionalField(rawPhone, "phone");
+            if (!rawPhone.isEmpty()) controller.setPhone(id, rawPhone);
 
-            boolean newActive = InputUtils.readYesNo(scanner, "Active?", s.isActive());
+            boolean newActive = InputUtils.readYesNo(scanner, "Active?", curActive);
+            if (newActive != curActive) controller.setActive(id, newActive);
 
-            s.setFirstName(newFirst);
-            s.setLastName(newLast);
-            s.setGender(newGender);
-            s.setDateOfBirth(newDob);
-            s.setDepartment(newDept);
-            s.setProgram(newProg);
-            s.setYearLevel(newYear);
-            s.setCurrentSemester(newSem);
-            s.setEnrollmentDate(newEnrollDate);
-            s.setEmail(newEmail);
-            s.setPhone(newPhone);
-            s.setActive(newActive);
-
-            if (save()) {
-                System.out.println("  Updated " + s.getId());
-            }
+            System.out.println("  Updated " + id);
         } catch (IllegalArgumentException e) {
-            System.out.println("  Invalid input: " + e.getMessage() + " — nothing changed.");
+            System.out.println("  Invalid input: " + e.getMessage()
+                    + " — earlier fields may already be saved; re-run to fix.");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void deleteStudent() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID to delete: ");
-        Student s = findById(id);
+        Student s = controller.getById(id);
         if (s == null) {
             System.out.println("  Not found: " + id);
             return;
         }
         printProfile(s);
+        if (!s.isActive()) {
+            System.out.println("  Already inactive.");
+            return;
+        }
         boolean confirm = InputUtils.readYesNo(
-                scanner, "Delete " + s.getId() + " (" + s.getFullName() + ")?", false);
+                scanner, "Deactivate " + s.getId() + " (" + s.getFullName() + ")?", false);
         if (!confirm) {
             System.out.println("  Cancelled.");
             return;
         }
-        students.remove(s);
-        if (save()) {
-            System.out.println("  Deleted " + id);
-            System.out.println("  Note: enrollments/records for this student are kept (cleanup comes with controllers).");
+        try {
+            controller.delete(id);
+            System.out.println("  Deactivated " + id + " (row kept for records).");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void search() {
-        String q = InputUtils.readRequiredLine(scanner, "Search (id/name/department/program/email): ")
-                .toLowerCase(Locale.ROOT);
-        List<Student> hits = new ArrayList<>();
-        for (Student s : students) {
-            if (contains(s.getId(), q)
-                    || contains(s.getFullName(), q)
-                    || contains(s.getDepartment(), q)
-                    || contains(s.getProgram(), q)
-                    || contains(s.getEmail(), q)) {
-                hits.add(s);
-            }
-        }
+        String q = InputUtils.readRequiredLine(scanner, "Search (id/name/department/program/email): ");
         FormatUtils.printHeader("SEARCH RESULTS");
-        printStudents(hits);
+        printStudents(controller.search(q));
     }
 
     private void sortByName() {
-        List<Student> sorted = new ArrayList<>(students);
-        sorted.sort(Comparator
-                .comparing(Student::getLastName, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER))
-                .thenComparing(Student::getFirstName, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER)));
         FormatUtils.printHeader("STUDENTS SORTED BY NAME");
-        printStudents(sorted);
+        printStudents(controller.sortByName());
     }
 
     private void sortByGpa() {
-        Map<String, Double> gpaById = new HashMap<>();
-        for (Student s : students) {
-            gpaById.put(s.getId(), AcademicUtils.calculateGpa(s.getId(), records, subjects));
-        }
-        List<Student> sorted = new ArrayList<>(students);
-        sorted.sort((a, b) -> {
-            int cmp = Double.compare(gpaById.get(b.getId()), gpaById.get(a.getId()));
-            if (cmp != 0) return cmp;
-            cmp = compareNullable(a.getLastName(), b.getLastName());
-            if (cmp != 0) return cmp;
-            return compareNullable(a.getFirstName(), b.getFirstName());
-        });
         FormatUtils.printHeader("STUDENTS SORTED BY GPA (DESC)");
-        printStudents(sorted);
+        printStudents(controller.sortByGpa());
     }
 
     // ===== Display helpers =====
@@ -274,7 +211,7 @@ public class StudentView {
         String[] headers = {"ID", "Name", "Gender", "Dept", "Program", "Year", "Sem", "Email", "Active", "Cr", "GPA"};
         List<String[]> rows = new ArrayList<>();
         for (Student s : list) {
-            double gpa = AcademicUtils.calculateGpa(s.getId(), records, subjects);
+            double gpa = controller.getGpa(s.getId());
             rows.add(new String[]{
                     text(s.getId()),
                     s.getFullName(),
@@ -285,7 +222,7 @@ public class StudentView {
                     text(s.getCurrentSemester()),
                     text(s.getEmail()),
                     String.valueOf(s.isActive()),
-                    String.valueOf(s.getEarnedCredits()),
+                    String.valueOf(controller.getStoredCredits(s.getId())),
                     String.format(Locale.US, "%.2f", gpa)
             });
         }
@@ -294,8 +231,8 @@ public class StudentView {
 
     private void printProfile(Student s) {
         FormatUtils.printHeader("STUDENT PROFILE: " + s.getId());
-        double gpa = AcademicUtils.calculateGpa(s.getId(), records, subjects);
-        int computedCredits = AcademicUtils.calculateEarnedCredits(s.getId(), records, subjects);
+        double gpa = controller.getGpa(s.getId());
+        int computedCredits = controller.getEarnedCredits(s.getId());
         System.out.println("Name:             " + s.getFullName());
         System.out.println("Gender:           " + (s.getGender() == null ? "" : s.getGender()));
         System.out.println("Date of birth:    " + (s.getDateOfBirth() == null ? "" : s.getDateOfBirth()));
@@ -308,42 +245,18 @@ public class StudentView {
         System.out.println("Phone:            " + text(s.getPhone()));
         System.out.println("Active:           " + s.isActive());
         System.out.println("GPA (computed):   " + String.format(Locale.US, "%.2f", gpa));
-        System.out.println("Credits computed: " + computedCredits + " | stored: " + s.getEarnedCredits());
+        System.out.println("Credits computed: " + computedCredits + " | stored: " + controller.getStoredCredits(s.getId()));
     }
 
     // ===== Internal helpers =====
-
-    private Student findById(String id) {
-        for (Student s : students) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private boolean save() {
-        try {
-            FileService.saveStudents(filePath, students);
-            return true;
-        } catch (IOException e) {
-            System.out.println("  Save failed: " + e.getMessage());
-            return false;
-        }
-    }
 
     private static String text(String value) {
         return value == null ? "" : value;
     }
 
-    private static boolean contains(String value, String query) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
-    }
-
-    private static int compareNullable(String a, String b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return -1;
-        if (b == null) return 1;
-        return a.compareToIgnoreCase(b);
+    private static boolean sameDate(LocalDate a, LocalDate b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.equals(b);
     }
 }

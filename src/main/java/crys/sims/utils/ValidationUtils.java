@@ -151,9 +151,9 @@ public final class ValidationUtils {
             throw new IllegalArgumentException("Subject is full (" + inSemester + "/" + subj.getMaxCapacity() + ").");
         }
         int current = AcademicUtils.currentEnrolledCredits(studentId, sem, enrollments, subjects);
-        if (current + subj.getCredits() > AcademicUtils.MAX_CREDITS_PER_SEMESTER) {
+        if (current + subj.getCredits() > AcademicUtils.getMaxCreditsPerSemester()) {
             throw new IllegalArgumentException("Credit limit exceeded ("
-                    + current + "+" + subj.getCredits() + "/" + AcademicUtils.MAX_CREDITS_PER_SEMESTER + ").");
+                    + current + "+" + subj.getCredits() + "/" + AcademicUtils.getMaxCreditsPerSemester() + ").");
         }
         if (!isOfferedIn(subj, sem)) {
             throw new IllegalArgumentException(subj.getCode() + " is offered in semester '"

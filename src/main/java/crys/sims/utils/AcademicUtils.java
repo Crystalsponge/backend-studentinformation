@@ -16,10 +16,24 @@ import java.util.Map;
  */
 public final class AcademicUtils {
 
-    /** Max credits per student per semester for registration validation. Adjustable; controllers will own this later. */
-    public static final int MAX_CREDITS_PER_SEMESTER = 21;
+    private static int maxCreditsPerSemester = 18;
 
     private AcademicUtils() {
+    }
+
+    /**
+     * Decided value: 18. File-backed via data/config.txt (maxCredits=18);
+     * Main loads it at startup through setMaxCreditsPerSemester.
+     */
+    public static int getMaxCreditsPerSemester() {
+        return maxCreditsPerSemester;
+    }
+
+    public static void setMaxCreditsPerSemester(int maxCredits) {
+        if (maxCredits < 0) {
+            throw new IllegalArgumentException("maxCredits must not be negative: " + maxCredits);
+        }
+        maxCreditsPerSemester = maxCredits;
     }
 
     public static double calculateGpa(String studentId, List<AcademicRecord> records, List<Subject> subjects) {
