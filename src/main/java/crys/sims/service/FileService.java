@@ -3,7 +3,6 @@ package crys.sims.service;
 import crys.sims.model.*;
 import crys.sims.model.enums.GENDER;
 import crys.sims.model.enums.GRADE;
-import crys.sims.model.WaitlistEntry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,10 +31,14 @@ public final class FileService {
 
     // ===== Helpers =====
 
-    private static List<String> readLines(Path path) throws IOException {
+    private static void ensureParent(Path path) throws IOException {
         if (path.getParent() != null) {
             Files.createDirectories(path.getParent());
         }
+    }
+
+    private static List<String> readLines(Path path) throws IOException {
+        ensureParent(path);
         if (!Files.exists(path)) {
             Files.createFile(path);
             return new ArrayList<>();
@@ -43,9 +47,7 @@ public final class FileService {
     }
 
     private static void writeLinesAtomic(Path path, List<String> lines) throws IOException {
-        if (path.getParent() != null) {
-            Files.createDirectories(path.getParent());
-        }
+        ensureParent(path);
         Path tmp = path.resolveSibling(path.getFileName().toString() + ".tmp");
         Files.write(tmp, lines, StandardCharsets.UTF_8);
         try {
@@ -58,6 +60,7 @@ public final class FileService {
             try {
                 Files.deleteIfExists(tmp);
             } catch (IOException ignored) {
+                // Best-effort tmp cleanup; the original failure below is what matters.
             }
             throw e;
         }
@@ -157,7 +160,7 @@ public final class FileService {
                 System.err.println("WARN skip student line with empty id: " + raw);
                 continue;
             }
-            if (!seenIds.add(f[0].trim())) {
+            if (!seenIds.add(f[0].trim().toUpperCase(Locale.ROOT))) {
                 System.err.println("WARN skip duplicate student id (keeping first): " + raw);
                 continue;
             }
@@ -240,7 +243,7 @@ public final class FileService {
                 System.err.println("WARN skip subject line with empty id: " + raw);
                 continue;
             }
-            if (!seenIds.add(f[0].trim())) {
+            if (!seenIds.add(f[0].trim().toUpperCase(Locale.ROOT))) {
                 System.err.println("WARN skip duplicate subject id (keeping first): " + raw);
                 continue;
             }
@@ -306,7 +309,7 @@ public final class FileService {
                 System.err.println("WARN skip faculty line with empty id: " + raw);
                 continue;
             }
-            if (!seenIds.add(f[0].trim())) {
+            if (!seenIds.add(f[0].trim().toUpperCase(Locale.ROOT))) {
                 System.err.println("WARN skip duplicate faculty id (keeping first): " + raw);
                 continue;
             }
@@ -359,7 +362,7 @@ public final class FileService {
                 System.err.println("WARN skip department line with empty id: " + raw);
                 continue;
             }
-            if (!seenIds.add(f[0].trim())) {
+            if (!seenIds.add(f[0].trim().toUpperCase(Locale.ROOT))) {
                 System.err.println("WARN skip duplicate department id (keeping first): " + raw);
                 continue;
             }
@@ -414,7 +417,7 @@ public final class FileService {
             }
             // Retake rule: same student+subject+semester is one enrollment.
             // A retake must be recorded under a distinct semester key.
-            if (!seenKeys.add(f[0].trim() + "|" + f[1].trim() + "|" + f[2].trim())) {
+            if (!seenKeys.add(f[0].trim().toUpperCase(Locale.ROOT) + "|" + f[1].trim().toUpperCase(Locale.ROOT) + "|" + f[2].trim())) {
                 System.err.println("WARN skip duplicate enrollment (keeping first): " + raw);
                 continue;
             }
@@ -471,7 +474,7 @@ public final class FileService {
             }
             // Retake rule: same student+subject+semester keeps the first grade.
             // A retake grade must be recorded under a distinct semester key.
-            if (!seenKeys.add(f[0].trim() + "|" + f[1].trim() + "|" + f[2].trim())) {
+            if (!seenKeys.add(f[0].trim().toUpperCase(Locale.ROOT) + "|" + f[1].trim().toUpperCase(Locale.ROOT) + "|" + f[2].trim())) {
                 System.err.println("WARN skip duplicate academic_record (keeping first): " + raw);
                 continue;
             }
@@ -483,9 +486,6 @@ public final class FileService {
                 String g = f[3].trim();
                 if (!g.isEmpty()) {
                     GRADE grade = GRADE.fromString(g);
-                    if (grade == null) {
-                        try { grade = GRADE.valueOf(g.toUpperCase()); } catch (IllegalArgumentException ignored) {}
-                    }
                     r.setGrade(grade);
                     if (grade == null) {
                         System.err.println("WARN invalid grade: " + g + " in line: " + raw);
@@ -536,7 +536,7 @@ public final class FileService {
                 System.err.println("WARN skip waitlist line with empty studentId/subjectId: " + raw);
                 continue;
             }
-            if (!seenKeys.add(f[0].trim() + "|" + f[1].trim() + "|" + f[2].trim())) {
+            if (!seenKeys.add(f[0].trim().toUpperCase(Locale.ROOT) + "|" + f[1].trim().toUpperCase(Locale.ROOT) + "|" + f[2].trim())) {
                 System.err.println("WARN skip duplicate waitlist entry (keeping first): " + raw);
                 continue;
             }

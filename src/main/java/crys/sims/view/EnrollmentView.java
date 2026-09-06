@@ -11,6 +11,7 @@ import crys.sims.service.WaitlistService;
 import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
+import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
@@ -19,7 +20,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
 
@@ -114,7 +114,7 @@ public class EnrollmentView {
     private void viewRoster() {
         Subject subj = readSubject();
         if (subj == null) return;
-        FormatUtils.printHeader("ROSTER: " + subj.getCode() + " " + text(subj.getName()));
+        FormatUtils.printHeader("ROSTER: " + subj.getCode() + " " + TextUtils.orEmpty(subj.getName()));
         String[] headers = {"Student", "Name", "Program", "Sem", "Date"};
         List<String[]> rows = new ArrayList<>();
         int count = 0;
@@ -125,8 +125,8 @@ public class EnrollmentView {
             rows.add(new String[]{
                     e.getStudentId(),
                     stu == null ? "MISSING" : stu.getFullName(),
-                    stu == null ? "" : text(stu.getProgram()),
-                    text(e.getSemester()),
+                    stu == null ? "" : TextUtils.orEmpty(stu.getProgram()),
+                    TextUtils.orEmpty(e.getSemester()),
                     e.getEnrollmentDate() == null ? "" : e.getEnrollmentDate().toString()
             });
         }
@@ -144,8 +144,8 @@ public class EnrollmentView {
         }
         Subject subj = readSubject();
         if (subj == null) return;
-        String rawSem = InputUtils.readLine(scanner, "Semester [" + text(stu.getCurrentSemester()) + "]: ");
-        String sem = rawSem.isEmpty() ? text(stu.getCurrentSemester()) : rawSem;
+        String rawSem = InputUtils.readLine(scanner, "Semester [" + TextUtils.orEmpty(stu.getCurrentSemester()) + "]: ");
+        String sem = rawSem.isEmpty() ? TextUtils.orEmpty(stu.getCurrentSemester()) : rawSem;
         try {
             ValidationUtils.validateRegistration(stu.getId(), subj.getId(), sem,
                     students, subjects, enrollments, records);
@@ -242,7 +242,7 @@ public class EnrollmentView {
         for (Map.Entry<String, Integer> entry : bySubject.entrySet()) {
             Subject subj = findSubjectById(entry.getKey());
             String code = subj == null ? entry.getKey() : subj.getCode();
-            String name = subj == null ? "MISSING" : text(subj.getName());
+            String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
             subRows.add(new String[]{code, name, String.valueOf(entry.getValue())});
             String dept = (subj == null || subj.getDepartment() == null) ? "(unknown)" : subj.getDepartment();
             byDept.put(dept, byDept.getOrDefault(dept, 0) + entry.getValue());
@@ -321,7 +321,7 @@ public class EnrollmentView {
                     w.getStudentId(),
                     stu == null ? "MISSING" : stu.getFullName(),
                     subj == null ? w.getSubjectId() : subj.getCode(),
-                    text(w.getSemester()),
+                    TextUtils.orEmpty(w.getSemester()),
                     w.getRequestDate() == null ? "" : w.getRequestDate().toString()
             });
         }
@@ -338,8 +338,8 @@ public class EnrollmentView {
         }
         Subject subj = readSubject();
         if (subj == null) return;
-        String rawSem = InputUtils.readLine(scanner, "Semester [" + text(stu.getCurrentSemester()) + "]: ");
-        String sem = rawSem.isEmpty() ? text(stu.getCurrentSemester()) : rawSem;
+        String rawSem = InputUtils.readLine(scanner, "Semester [" + TextUtils.orEmpty(stu.getCurrentSemester()) + "]: ");
+        String sem = rawSem.isEmpty() ? TextUtils.orEmpty(stu.getCurrentSemester()) : rawSem;
         doJoin(stu, subj, sem);
     }
 
@@ -434,13 +434,13 @@ public class EnrollmentView {
                         e.getStudentId(),
                         stu == null ? "MISSING" : stu.getFullName(),
                         subjShown,
-                        text(e.getSemester()),
+                        TextUtils.orEmpty(e.getSemester()),
                         e.getEnrollmentDate() == null ? "" : e.getEnrollmentDate().toString()
                 });
             } else {
                 rows.add(new String[]{
                         subjShown,
-                        text(e.getSemester()),
+                        TextUtils.orEmpty(e.getSemester()),
                         e.getEnrollmentDate() == null ? "" : e.getEnrollmentDate().toString()
                 });
             }
@@ -495,9 +495,5 @@ public class EnrollmentView {
             System.out.println("  Save failed: " + e.getMessage());
             return false;
         }
-    }
-
-    private static String text(String value) {
-        return value == null ? "" : value;
     }
 }

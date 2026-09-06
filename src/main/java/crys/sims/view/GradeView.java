@@ -9,6 +9,7 @@ import crys.sims.service.FileService;
 import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
+import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
@@ -196,8 +197,7 @@ public class GradeView {
             System.out.println("  Cancelled.");
             return;
         }
-        final AcademicRecord doomed = target;
-        records.remove(doomed);
+        records.remove(target);
         syncCredits(stu);
         if (saveAll()) {
             System.out.println("  Deleted grade record.");
@@ -230,10 +230,10 @@ public class GradeView {
             if (!stu.getId().equals(r.getStudentId())) continue;
             Subject subj = findSubjectById(r.getSubjectId());
             rows.add(new String[]{
-                    subj == null ? r.getSubjectId() : text(subj.getCode()),
-                    subj == null ? "MISSING" : text(subj.getName()),
+                    subj == null ? r.getSubjectId() : TextUtils.orEmpty(subj.getCode()),
+                    subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName()),
                     subj == null ? "?" : String.valueOf(subj.getCredits()),
-                    text(r.getSemester()),
+                    TextUtils.orEmpty(r.getSemester()),
                     r.getGrade() == null ? "" : r.getGrade().name(),
                     r.getGrade() == null ? "" : String.format(Locale.US, "%.1f", r.getGrade().getGpaValue())
             });
@@ -363,9 +363,5 @@ public class GradeView {
             System.out.println("  Save failed: " + e.getMessage());
             return false;
         }
-    }
-
-    private static String text(String value) {
-        return value == null ? "" : value;
     }
 }

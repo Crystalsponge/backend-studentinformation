@@ -8,6 +8,7 @@ import crys.sims.service.FileService;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.IdGenerator;
 import crys.sims.utils.InputUtils;
+import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
@@ -15,7 +16,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.stream.Collectors;
@@ -123,7 +123,7 @@ public class FacultyView {
         }
         printFacultyInfo(f);
         try {
-            String rawName = InputUtils.readLine(scanner, "Name [" + text(f.getName()) + "]: ");
+            String rawName = InputUtils.readLine(scanner, "Name [" + TextUtils.orEmpty(f.getName()) + "]: ");
             String newName = rawName.isEmpty() ? f.getName()
                     : ValidationUtils.cleanField(rawName, "name");
             f.setName(newName);
@@ -146,14 +146,14 @@ public class FacultyView {
         if (!attached.isEmpty()) {
             System.out.println("  Cannot delete: faculty still has " + attached.size() + " department(s):");
             for (Department d : attached) {
-                System.out.println("    " + d.getId() + " " + text(d.getName()));
+                System.out.println("    " + d.getId() + " " + TextUtils.orEmpty(d.getName()));
             }
             System.out.println("  Move or delete them first (menu 6).");
             return;
         }
         printFacultyInfo(f);
         boolean confirm = InputUtils.readYesNo(
-                scanner, "Delete " + f.getId() + " (" + text(f.getName()) + ")?", false);
+                scanner, "Delete " + f.getId() + " (" + TextUtils.orEmpty(f.getName()) + ")?", false);
         if (!confirm) {
             System.out.println("  Cancelled.");
             return;
@@ -218,11 +218,11 @@ public class FacultyView {
             return;
         }
         try {
-            String rawName = InputUtils.readLine(scanner, "Name [" + text(d.getName()) + "]: ");
+            String rawName = InputUtils.readLine(scanner, "Name [" + TextUtils.orEmpty(d.getName()) + "]: ");
             String newName = rawName.isEmpty() ? d.getName()
                     : ValidationUtils.cleanField(rawName, "name");
 
-            String rawFac = InputUtils.readLine(scanner, "Faculty ID [" + text(d.getFacultyId()) + "]: ");
+            String rawFac = InputUtils.readLine(scanner, "Faculty ID [" + TextUtils.orEmpty(d.getFacultyId()) + "]: ");
             String newFacId = d.getFacultyId();
             if (!rawFac.isEmpty()) {
                 Faculty owner = findFaculty(rawFac);
@@ -255,13 +255,13 @@ public class FacultyView {
         if (!using.isEmpty()) {
             System.out.println("  Cannot delete: " + using.size() + " subject(s) reference this department:");
             for (Subject s : using) {
-                System.out.println("    " + s.getId() + " " + text(s.getCode()) + " " + text(s.getName()));
+                System.out.println("    " + s.getId() + " " + TextUtils.orEmpty(s.getCode()) + " " + TextUtils.orEmpty(s.getName()));
             }
             System.out.println("  Reassign or delete them first (subject menu).");
             return;
         }
         boolean confirm = InputUtils.readYesNo(
-                scanner, "Delete " + d.getId() + " (" + text(d.getName()) + ")?", false);
+                scanner, "Delete " + d.getId() + " (" + TextUtils.orEmpty(d.getName()) + ")?", false);
         if (!confirm) {
             System.out.println("  Cancelled.");
             return;
@@ -278,17 +278,17 @@ public class FacultyView {
     private void browseHierarchy() {
         FormatUtils.printHeader("FACULTY / DEPARTMENT HIERARCHY");
         for (Faculty f : faculties) {
-            System.out.println(text(f.getName()) + " (" + text(f.getId()) + ")");
+            System.out.println(TextUtils.orEmpty(f.getName()) + " (" + TextUtils.orEmpty(f.getId()) + ")");
             List<Department> depts = departmentsOf(f.getId());
             if (depts.isEmpty()) {
                 System.out.println("  (no departments)");
             }
             for (Department d : depts) {
                 List<Subject> subs = subjectsOf(d.getId());
-                System.out.println("  " + text(d.getId()) + " " + text(d.getName())
+                System.out.println("  " + TextUtils.orEmpty(d.getId()) + " " + TextUtils.orEmpty(d.getName())
                         + " [" + subs.size() + " subject(s)]");
                 for (Subject s : subs) {
-                    System.out.println("    " + text(s.getCode()) + " " + text(s.getName())
+                    System.out.println("    " + TextUtils.orEmpty(s.getCode()) + " " + TextUtils.orEmpty(s.getName())
                             + " (" + s.getCredits() + " cr, " + enrollmentCount(s.getId()) + " enrolled)");
                 }
             }
@@ -297,22 +297,21 @@ public class FacultyView {
         if (!orphans.isEmpty()) {
             System.out.println("Departments with unknown faculty:");
             for (Department d : orphans) {
-                System.out.println("  " + text(d.getId()) + " " + text(d.getName())
-                        + " -> faculty '" + text(d.getFacultyId()) + "' not found");
+                System.out.println("  " + TextUtils.orEmpty(d.getId()) + " " + TextUtils.orEmpty(d.getName())
+                        + " -> faculty '" + TextUtils.orEmpty(d.getFacultyId()) + "' not found");
             }
         }
     }
 
     private void search() {
-        String q = InputUtils.readRequiredLine(scanner, "Search (faculty/department id or name): ")
-                .toLowerCase(Locale.ROOT);
+        String q = InputUtils.readRequiredLine(scanner, "Search (faculty/department id or name): ");
         List<Faculty> facHits = new ArrayList<>();
         for (Faculty f : faculties) {
-            if (contains(f.getId(), q) || contains(f.getName(), q)) facHits.add(f);
+            if (TextUtils.containsIgnoreCase(f.getId(), q) || TextUtils.containsIgnoreCase(f.getName(), q)) facHits.add(f);
         }
         List<Department> deptHits = new ArrayList<>();
         for (Department d : departments) {
-            if (contains(d.getId(), q) || contains(d.getName(), q)) deptHits.add(d);
+            if (TextUtils.containsIgnoreCase(d.getId(), q) || TextUtils.containsIgnoreCase(d.getName(), q)) deptHits.add(d);
         }
         FormatUtils.printHeader("SEARCH RESULTS");
         System.out.println("-- Faculties --");
@@ -328,8 +327,8 @@ public class FacultyView {
         List<String[]> rows = new ArrayList<>();
         for (Faculty f : list) {
             rows.add(new String[]{
-                    text(f.getId()),
-                    text(f.getName()),
+                    TextUtils.orEmpty(f.getId()),
+                    TextUtils.orEmpty(f.getName()),
                     String.valueOf(departmentsOf(f.getId()).size())
             });
         }
@@ -342,11 +341,11 @@ public class FacultyView {
         for (Department d : list) {
             Faculty owner = d.getFacultyId() == null ? null : findFaculty(d.getFacultyId());
             String facShown = owner == null
-                    ? "MISSING (" + text(d.getFacultyId()) + ")"
-                    : owner.getId() + " " + text(owner.getName());
+                    ? "MISSING (" + TextUtils.orEmpty(d.getFacultyId()) + ")"
+                    : owner.getId() + " " + TextUtils.orEmpty(owner.getName());
             rows.add(new String[]{
-                    text(d.getId()),
-                    text(d.getName()),
+                    TextUtils.orEmpty(d.getId()),
+                    TextUtils.orEmpty(d.getName()),
                     facShown,
                     String.valueOf(subjectsOf(d.getId()).size())
             });
@@ -356,14 +355,14 @@ public class FacultyView {
 
     private void printFacultyInfo(Faculty f) {
         FormatUtils.printHeader("FACULTY INFO: " + f.getId());
-        System.out.println("Name:        " + text(f.getName()));
+        System.out.println("Name:        " + TextUtils.orEmpty(f.getName()));
         List<Department> depts = departmentsOf(f.getId());
         System.out.println("Departments (" + depts.size() + "):");
         if (depts.isEmpty()) {
             System.out.println("  (none)");
         }
         for (Department d : depts) {
-            System.out.println("  " + text(d.getId()) + " " + text(d.getName())
+            System.out.println("  " + TextUtils.orEmpty(d.getId()) + " " + TextUtils.orEmpty(d.getName())
                     + " [" + subjectsOf(d.getId()).size() + " subject(s)]");
         }
     }
@@ -384,7 +383,7 @@ public class FacultyView {
     private void syncFacultyDepartments() {
         Map<String, List<String>> byFaculty = new HashMap<>();
         for (Department d : departments) {
-            byFaculty.computeIfAbsent(text(d.getFacultyId()), k -> new ArrayList<>()).add(d.getId());
+            byFaculty.computeIfAbsent(TextUtils.orEmpty(d.getFacultyId()), k -> new ArrayList<>()).add(d.getId());
         }
         for (Faculty f : faculties) {
             List<String> ids = byFaculty.getOrDefault(f.getId(), new ArrayList<>());
@@ -446,7 +445,7 @@ public class FacultyView {
     private List<Department> orphanDepartments() {
         List<Department> result = new ArrayList<>();
         for (Department d : departments) {
-            if (findFaculty(text(d.getFacultyId())) == null) {
+            if (findFaculty(TextUtils.orEmpty(d.getFacultyId())) == null) {
                 result.add(d);
             }
         }
@@ -471,13 +470,5 @@ public class FacultyView {
             }
         }
         return n;
-    }
-
-    private static String text(String value) {
-        return value == null ? "" : value;
-    }
-
-    private static boolean contains(String value, String query) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
     }
 }

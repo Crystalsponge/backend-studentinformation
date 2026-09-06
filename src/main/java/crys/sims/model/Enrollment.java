@@ -1,6 +1,7 @@
 package crys.sims.model;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 public class Enrollment {
     private String studentId;
@@ -55,14 +56,14 @@ public class Enrollment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Enrollment that = (Enrollment) o;
-        return java.util.Objects.equals(studentId, that.studentId)
-                && java.util.Objects.equals(subjectId, that.subjectId)
-                && java.util.Objects.equals(semester, that.semester);
+        return Objects.equals(studentId, that.studentId)
+                && Objects.equals(subjectId, that.subjectId)
+                && Objects.equals(semester, that.semester);
     }
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(studentId, subjectId, semester);
+        return Objects.hash(studentId, subjectId, semester);
     }
 
     @Override

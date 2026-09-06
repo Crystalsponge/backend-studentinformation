@@ -2,6 +2,8 @@ package crys.sims.model;
 
 import crys.sims.model.enums.GRADE;
 
+import java.util.Objects;
+
 public class AcademicRecord {
     private String studentId;
     private String subjectId;
@@ -55,14 +57,14 @@ public class AcademicRecord {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AcademicRecord that = (AcademicRecord) o;
-        return java.util.Objects.equals(studentId, that.studentId)
-                && java.util.Objects.equals(subjectId, that.subjectId)
-                && java.util.Objects.equals(semester, that.semester);
+        return Objects.equals(studentId, that.studentId)
+                && Objects.equals(subjectId, that.subjectId)
+                && Objects.equals(semester, that.semester);
     }
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(studentId, subjectId, semester);
+        return Objects.hash(studentId, subjectId, semester);
     }
 
     @Override

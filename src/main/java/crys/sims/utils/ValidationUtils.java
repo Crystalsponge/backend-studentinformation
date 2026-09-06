@@ -191,6 +191,7 @@ public final class ValidationUtils {
     }
 
     private static Student requireStudent(List<Student> students, String studentId) {
+        requireNonNull(studentId, "studentId");
         for (Student s : students) {
             if (studentId.equals(s.getId())) {
                 if (!s.isActive()) {
@@ -203,6 +204,7 @@ public final class ValidationUtils {
     }
 
     private static Subject requireSubject(List<Subject> subjects, String subjectId) {
+        requireNonNull(subjectId, "subjectId");
         for (Subject s : subjects) {
             if (subjectId.equals(s.getId())) {
                 return s;

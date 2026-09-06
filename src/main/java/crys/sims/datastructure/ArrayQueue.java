@@ -98,6 +98,10 @@ public class ArrayQueue<T> {
                 }
                 elements[(head + size - 1) % elements.length] = null;
                 size--;
+                // Occupancy stays contiguous from head, so the insertion
+                // point must be recomputed; otherwise the next enqueue
+                // writes to a stale slot and corrupts logical order.
+                tail = (head + size) % elements.length;
                 return true;
             }
         }

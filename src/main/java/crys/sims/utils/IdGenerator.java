@@ -19,6 +19,7 @@ public final class IdGenerator {
                     int n = Integer.parseInt(id.substring(prefix.length()));
                     if (n > max) max = n;
                 } catch (NumberFormatException ignored) {
+                    // Not a numeric suffix — not one of ours; skip.
                 }
             }
         }

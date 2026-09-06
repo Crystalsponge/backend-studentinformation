@@ -8,6 +8,7 @@ import crys.sims.model.enums.GRADE;
 import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
+import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.util.ArrayList;
@@ -70,14 +71,14 @@ public class TranscriptView {
         }
         FormatUtils.printHeader("ACADEMIC TRANSCRIPT");
         System.out.println("Student:    " + stu.getId() + " " + stu.getFullName());
-        System.out.println("Program:    " + text(stu.getProgram()) + " | Department: " + text(stu.getDepartment()));
-        System.out.println("Year level: " + stu.getYearLevel() + " | Semester: " + text(stu.getCurrentSemester()));
+        System.out.println("Program:    " + TextUtils.orEmpty(stu.getProgram()) + " | Department: " + TextUtils.orEmpty(stu.getDepartment()));
+        System.out.println("Year level: " + stu.getYearLevel() + " | Semester: " + TextUtils.orEmpty(stu.getCurrentSemester()));
         System.out.println();
 
         Map<String, List<AcademicRecord>> bySemester = new TreeMap<>();
         for (AcademicRecord r : records) {
             if (stu.getId().equals(r.getStudentId())) {
-                bySemester.computeIfAbsent(text(r.getSemester()), k -> new ArrayList<>()).add(r);
+                bySemester.computeIfAbsent(TextUtils.orEmpty(r.getSemester()), k -> new ArrayList<>()).add(r);
             }
         }
         if (bySemester.isEmpty()) {
@@ -89,8 +90,8 @@ public class TranscriptView {
             entry.getValue().sort(Comparator.comparing(r -> subjectCode(r.getSubjectId())));
             for (AcademicRecord r : entry.getValue()) {
                 Subject subj = findSubjectById(r.getSubjectId());
-                String code = subj == null ? r.getSubjectId() : text(subj.getCode());
-                String name = subj == null ? "MISSING" : text(subj.getName());
+                String code = subj == null ? r.getSubjectId() : TextUtils.orEmpty(subj.getCode());
+                String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
                 String credits = subj == null ? "?" : String.valueOf(subj.getCredits());
                 String grade = r.getGrade() == null ? "-" : r.getGrade().name();
                 String points = r.getGrade() == null ? "-" : String.format(Locale.US, "%.1f", r.getGrade().getGpaValue());
@@ -104,9 +105,9 @@ public class TranscriptView {
             if (stu.getId().equals(e.getStudentId())) {
                 anyEnrolled = true;
                 Subject subj = findSubjectById(e.getSubjectId());
-                String code = subj == null ? e.getSubjectId() : text(subj.getCode());
-                String name = subj == null ? "MISSING" : text(subj.getName());
-                System.out.println("  " + code + " " + name + " (" + text(e.getSemester()) + ")");
+                String code = subj == null ? e.getSubjectId() : TextUtils.orEmpty(subj.getCode());
+                String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
+                System.out.println("  " + code + " " + name + " (" + TextUtils.orEmpty(e.getSemester()) + ")");
             }
         }
         if (!anyEnrolled) {
@@ -150,7 +151,7 @@ public class TranscriptView {
                 Subject subj = findSubjectById(reqId);
                 if (subj == null) subj = findSubjectByCode(reqId);
                 String label = subj == null ? reqId + " (unknown ID)"
-                        : subj.getCode() + " " + text(subj.getName());
+                        : subj.getCode() + " " + TextUtils.orEmpty(subj.getName());
                 GRADE best = bestGrade(stu.getId(), subj == null ? reqId : subj.getId());
                 if (best != null && best != GRADE.F) {
                     System.out.println("  [x] " + label + " — " + best);
@@ -181,7 +182,7 @@ public class TranscriptView {
             System.out.println("  Not found: " + id);
             return;
         }
-        String sem = text(stu.getCurrentSemester());
+        String sem = TextUtils.orEmpty(stu.getCurrentSemester());
         if (sem.isEmpty()) {
             sem = InputUtils.readRequiredLine(scanner, "Target semester (e.g. 2024-1): ");
         } else {
@@ -198,12 +199,12 @@ public class TranscriptView {
                     ? "-" : String.join(",", subj.getPrerequisiteIds());
             if (reason == null) {
                 available.add(new String[]{
-                        text(subj.getCode()), text(subj.getName()),
+                        TextUtils.orEmpty(subj.getCode()), TextUtils.orEmpty(subj.getName()),
                         String.valueOf(subj.getCredits()), prereqs,
                         enrollmentCount(subj.getId(), sem) + "/" + subj.getMaxCapacity()
                 });
             } else {
-                excluded.add(new String[]{text(subj.getCode()), reason});
+                excluded.add(new String[]{TextUtils.orEmpty(subj.getCode()), reason});
             }
         }
         available.sort(Comparator.comparing(row -> row[0], String.CASE_INSENSITIVE_ORDER));
@@ -227,11 +228,11 @@ public class TranscriptView {
         }
         for (Enrollment e : enrollments) {
             if (stu.getId().equals(e.getStudentId()) && subj.getId().equals(e.getSubjectId())) {
-                return "already enrolled (" + text(e.getSemester()) + ")";
+                return "already enrolled (" + TextUtils.orEmpty(e.getSemester()) + ")";
             }
         }
-        String stuDept = text(stu.getDepartment());
-        String subjDept = text(subj.getDepartment());
+        String stuDept = TextUtils.orEmpty(stu.getDepartment());
+        String subjDept = TextUtils.orEmpty(subj.getDepartment());
         if (!stuDept.isEmpty() && !subjDept.isEmpty() && !stuDept.equals(subjDept)) {
             return "different department (" + subjDept + ")";
         }
@@ -257,7 +258,7 @@ public class TranscriptView {
             return "full (" + inSemester + "/" + subj.getMaxCapacity() + ")";
         }
         if (!ValidationUtils.isOfferedIn(subj, semester)) {
-            return "offered in '" + text(subj.getSemesterOffered()) + "'";
+            return "offered in '" + TextUtils.orEmpty(subj.getSemesterOffered()) + "'";
         }
         return null;
     }
@@ -293,7 +294,7 @@ public class TranscriptView {
 
     private String subjectCode(String subjectId) {
         Subject subj = findSubjectById(subjectId);
-        return subj == null ? subjectId : text(subj.getCode());
+        return subj == null ? subjectId : TextUtils.orEmpty(subj.getCode());
     }
 
     private GRADE bestGrade(String studentId, String subjectId) {
@@ -318,9 +319,5 @@ public class TranscriptView {
             }
         }
         return n;
-    }
-
-    private static String text(String value) {
-        return value == null ? "" : value;
     }
 }

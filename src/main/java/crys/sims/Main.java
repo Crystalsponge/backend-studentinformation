@@ -88,7 +88,7 @@ public class Main {
             System.out.println("Saved on exit.");
             System.out.println("Bye.");
 
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             System.out.println("Failed to load data: " + e.getMessage());
             e.printStackTrace();
         }
@@ -101,15 +101,7 @@ public class Main {
                     String t = line == null ? "" : line.trim();
                     if (t.isEmpty() || t.startsWith("#")) continue;
                     if (t.startsWith("maxCredits=")) {
-                        try {
-                            int v = Integer.parseInt(t.substring("maxCredits=".length()).trim());
-                            if (v < 0) throw new NumberFormatException();
-                            return v;
-                        } catch (NumberFormatException e) {
-                            System.err.println("WARN invalid maxCredits in " + configPath
-                                    + ", defaulting to " + AcademicUtils.getMaxCreditsPerSemester());
-                            return AcademicUtils.getMaxCreditsPerSemester();
-                        }
+                        return parseMaxCredits(t.substring("maxCredits=".length()).trim(), configPath);
                     }
                 }
             }
@@ -118,6 +110,22 @@ public class Main {
                     + ", defaulting maxCredits to " + AcademicUtils.getMaxCreditsPerSemester());
         }
         return AcademicUtils.getMaxCreditsPerSemester();
+    }
+
+    private static int parseMaxCredits(String raw, Path configPath) {
+        int fallback = AcademicUtils.getMaxCreditsPerSemester();
+        int v;
+        try {
+            v = Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            v = -1;
+        }
+        if (v < 0) {
+            System.err.println("WARN invalid maxCredits '" + raw + "' in " + configPath
+                    + ", defaulting to " + fallback);
+            return fallback;
+        }
+        return v;
     }
 
     private static void saveAll(List<Student> students, Path studentsPath,

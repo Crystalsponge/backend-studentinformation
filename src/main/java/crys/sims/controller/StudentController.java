@@ -7,6 +7,7 @@ import crys.sims.model.enums.GENDER;
 import crys.sims.service.FileService;
 import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.IdGenerator;
+import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
@@ -16,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -28,6 +28,9 @@ import java.util.stream.Collectors;
  * stays a GradeController-synced cache (no setter here on purpose).
  */
 public class StudentController {
+
+    private static final Comparator<String> NULL_SAFE_ORDER =
+            Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER);
 
     private final List<Student> students;
     private final Path filePath;
@@ -83,15 +86,15 @@ public class StudentController {
     }
 
     public List<Student> search(String query) {
-        String q = query == null ? "" : query.toLowerCase(Locale.ROOT);
+        String q = query == null ? "" : query;
         List<Student> hits = new ArrayList<>();
         for (Student s : students) {
             if (!s.isActive()) continue;
-            if (contains(s.getId(), q)
-                    || contains(s.getFullName(), q)
-                    || contains(s.getDepartment(), q)
-                    || contains(s.getProgram(), q)
-                    || contains(s.getEmail(), q)) {
+            if (TextUtils.containsIgnoreCase(s.getId(), q)
+                    || TextUtils.containsIgnoreCase(s.getFullName(), q)
+                    || TextUtils.containsIgnoreCase(s.getDepartment(), q)
+                    || TextUtils.containsIgnoreCase(s.getProgram(), q)
+                    || TextUtils.containsIgnoreCase(s.getEmail(), q)) {
                 hits.add(s);
             }
         }
@@ -101,8 +104,8 @@ public class StudentController {
     public List<Student> sortByName() {
         List<Student> sorted = getAllActive();
         sorted.sort(Comparator
-                .comparing(Student::getLastName, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER))
-                .thenComparing(Student::getFirstName, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER)));
+                .comparing(Student::getLastName, NULL_SAFE_ORDER)
+                .thenComparing(Student::getFirstName, NULL_SAFE_ORDER));
         return sorted;
     }
 
@@ -117,9 +120,9 @@ public class StudentController {
         sorted.sort((a, b) -> {
             int cmp = Double.compare(gpaById.get(b.getId()), gpaById.get(a.getId()));
             if (cmp != 0) return cmp;
-            cmp = compareNullable(a.getLastName(), b.getLastName());
+            cmp = NULL_SAFE_ORDER.compare(a.getLastName(), b.getLastName());
             if (cmp != 0) return cmp;
-            return compareNullable(a.getFirstName(), b.getFirstName());
+            return NULL_SAFE_ORDER.compare(a.getFirstName(), b.getFirstName());
         });
         return sorted;
     }
@@ -248,16 +251,5 @@ public class StudentController {
 
     private void save() throws IOException {
         FileService.saveStudents(filePath, students);
-    }
-
-    private static boolean contains(String value, String query) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
-    }
-
-    private static int compareNullable(String a, String b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return -1;
-        if (b == null) return 1;
-        return a.compareToIgnoreCase(b);
     }
 }

@@ -6,6 +6,7 @@ import crys.sims.service.FileService;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.IdGenerator;
 import crys.sims.utils.InputUtils;
+import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
@@ -14,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 
@@ -123,22 +123,22 @@ public class SubjectView {
         try {
             // Gather + validate everything first, so a bad value aborts
             // before any field is changed.
-            String rawCode = InputUtils.readLine(scanner, "Code [" + text(s.getCode()) + "]: ");
+            String rawCode = InputUtils.readLine(scanner, "Code [" + TextUtils.orEmpty(s.getCode()) + "]: ");
             String newCode = rawCode.isEmpty() ? s.getCode() : checkCodeUnique(rawCode, s.getId());
 
-            String rawName = InputUtils.readLine(scanner, "Name [" + text(s.getName()) + "]: ");
+            String rawName = InputUtils.readLine(scanner, "Name [" + TextUtils.orEmpty(s.getName()) + "]: ");
             String newName = rawName.isEmpty() ? s.getName()
                     : ValidationUtils.cleanField(rawName, "name");
 
             int newCredits = InputUtils.readOptionalInt(scanner, "Credits", s.getCredits());
 
-            String rawDept = InputUtils.readLine(scanner, "Department ID [" + text(s.getDepartment()) + "]: ");
+            String rawDept = InputUtils.readLine(scanner, "Department ID [" + TextUtils.orEmpty(s.getDepartment()) + "]: ");
             String newDept = rawDept.isEmpty() ? s.getDepartment()
                     : ValidationUtils.cleanField(rawDept, "department");
 
             List<String> newPrereqs = readOptionalPrereqIds(s.getId(), s.getPrerequisiteIds());
 
-            String rawSem = InputUtils.readLine(scanner, "Semester offered [" + text(s.getSemesterOffered()) + "]: ");
+            String rawSem = InputUtils.readLine(scanner, "Semester offered [" + TextUtils.orEmpty(s.getSemesterOffered()) + "]: ");
             String newSem = rawSem.isEmpty() ? s.getSemesterOffered()
                     : ValidationUtils.cleanField(rawSem, "semesterOffered");
 
@@ -169,7 +169,7 @@ public class SubjectView {
         }
         printSubjectInfo(s);
         boolean confirm = InputUtils.readYesNo(
-                scanner, "Delete " + s.getId() + " (" + text(s.getCode()) + " " + text(s.getName()) + ")?", false);
+                scanner, "Delete " + s.getId() + " (" + TextUtils.orEmpty(s.getCode()) + " " + TextUtils.orEmpty(s.getName()) + ")?", false);
         if (!confirm) {
             System.out.println("  Cancelled.");
             return;
@@ -182,14 +182,13 @@ public class SubjectView {
     }
 
     private void search() {
-        String q = InputUtils.readRequiredLine(scanner, "Search (id/code/name/department): ")
-                .toLowerCase(Locale.ROOT);
+        String q = InputUtils.readRequiredLine(scanner, "Search (id/code/name/department): ");
         List<Subject> hits = new ArrayList<>();
         for (Subject s : subjects) {
-            if (contains(s.getId(), q)
-                    || contains(s.getCode(), q)
-                    || contains(s.getName(), q)
-                    || contains(s.getDepartment(), q)) {
+            if (TextUtils.containsIgnoreCase(s.getId(), q)
+                    || TextUtils.containsIgnoreCase(s.getCode(), q)
+                    || TextUtils.containsIgnoreCase(s.getName(), q)
+                    || TextUtils.containsIgnoreCase(s.getDepartment(), q)) {
                 hits.add(s);
             }
         }
@@ -220,13 +219,13 @@ public class SubjectView {
             String prereqs = (s.getPrerequisiteIds() == null || s.getPrerequisiteIds().isEmpty())
                     ? "-" : String.join(",", s.getPrerequisiteIds());
             rows.add(new String[]{
-                    text(s.getId()),
-                    text(s.getCode()),
-                    text(s.getName()),
+                    TextUtils.orEmpty(s.getId()),
+                    TextUtils.orEmpty(s.getCode()),
+                    TextUtils.orEmpty(s.getName()),
                     String.valueOf(s.getCredits()),
-                    text(s.getDepartment()),
+                    TextUtils.orEmpty(s.getDepartment()),
                     prereqs,
-                    text(s.getSemesterOffered()),
+                    TextUtils.orEmpty(s.getSemesterOffered()),
                     String.valueOf(s.getMaxCapacity()),
                     String.valueOf(enrollmentCount(s.getId()))
             });
@@ -236,11 +235,11 @@ public class SubjectView {
 
     private void printSubjectInfo(Subject s) {
         FormatUtils.printHeader("SUBJECT INFO: " + s.getId());
-        System.out.println("Code:             " + text(s.getCode()));
-        System.out.println("Name:             " + text(s.getName()));
+        System.out.println("Code:             " + TextUtils.orEmpty(s.getCode()));
+        System.out.println("Name:             " + TextUtils.orEmpty(s.getName()));
         System.out.println("Credits:          " + s.getCredits());
-        System.out.println("Department:       " + text(s.getDepartment()));
-        System.out.println("Semester offered: " + text(s.getSemesterOffered()));
+        System.out.println("Department:       " + TextUtils.orEmpty(s.getDepartment()));
+        System.out.println("Semester offered: " + TextUtils.orEmpty(s.getSemesterOffered()));
         System.out.println("Max capacity:     " + s.getMaxCapacity());
         System.out.println("Enrolled:         " + enrollmentCount(s.getId()));
         System.out.println("Prerequisites:");
@@ -252,7 +251,7 @@ public class SubjectView {
                 if (pre == null) {
                     System.out.println("  " + pid + " — MISSING (dangling reference)");
                 } else {
-                    System.out.println("  " + pid + " — " + text(pre.getCode()) + " " + text(pre.getName()));
+                    System.out.println("  " + pid + " — " + TextUtils.orEmpty(pre.getCode()) + " " + TextUtils.orEmpty(pre.getName()));
                 }
             }
         }
@@ -363,13 +362,5 @@ public class SubjectView {
             System.out.println("  Save failed: " + e.getMessage());
             return false;
         }
-    }
-
-    private static String text(String value) {
-        return value == null ? "" : value;
-    }
-
-    private static boolean contains(String value, String query) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
     }
 }

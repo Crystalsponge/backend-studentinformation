@@ -5,6 +5,7 @@ import crys.sims.model.Student;
 import crys.sims.model.enums.GENDER;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
+import crys.sims.utils.TextUtils;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -118,10 +119,10 @@ public class StudentView {
         LocalDate curEnrollDate = s.getEnrollmentDate();
         boolean curActive = s.isActive();
         try {
-            String rawFirst = InputUtils.readLine(scanner, "First name [" + text(s.getFirstName()) + "]: ");
+            String rawFirst = InputUtils.readLine(scanner, "First name [" + TextUtils.orEmpty(s.getFirstName()) + "]: ");
             if (!rawFirst.isEmpty()) controller.setFirstName(id, rawFirst);
 
-            String rawLast = InputUtils.readLine(scanner, "Last name [" + text(s.getLastName()) + "]: ");
+            String rawLast = InputUtils.readLine(scanner, "Last name [" + TextUtils.orEmpty(s.getLastName()) + "]: ");
             if (!rawLast.isEmpty()) controller.setLastName(id, rawLast);
 
             GENDER newGender = InputUtils.readOptionalGender(scanner, "Gender", curGender);
@@ -130,25 +131,25 @@ public class StudentView {
             LocalDate newDob = InputUtils.readOptionalDate(scanner, "Date of birth", curDob);
             if (!sameDate(newDob, curDob)) controller.setDateOfBirth(id, newDob);
 
-            String rawDept = InputUtils.readLine(scanner, "Department ID [" + text(s.getDepartment()) + "]: ");
+            String rawDept = InputUtils.readLine(scanner, "Department ID [" + TextUtils.orEmpty(s.getDepartment()) + "]: ");
             if (!rawDept.isEmpty()) controller.setDepartment(id, rawDept);
 
-            String rawProg = InputUtils.readLine(scanner, "Program [" + text(s.getProgram()) + "]: ");
+            String rawProg = InputUtils.readLine(scanner, "Program [" + TextUtils.orEmpty(s.getProgram()) + "]: ");
             if (!rawProg.isEmpty()) controller.setProgram(id, rawProg);
 
             int newYear = InputUtils.readOptionalInt(scanner, "Year level", curYear);
             if (newYear != curYear) controller.setYearLevel(id, newYear);
 
-            String rawSem = InputUtils.readLine(scanner, "Current semester [" + text(s.getCurrentSemester()) + "]: ");
+            String rawSem = InputUtils.readLine(scanner, "Current semester [" + TextUtils.orEmpty(s.getCurrentSemester()) + "]: ");
             if (!rawSem.isEmpty()) controller.setCurrentSemester(id, rawSem);
 
             LocalDate newEnrollDate = InputUtils.readOptionalDate(scanner, "Enrollment date", curEnrollDate);
             if (!sameDate(newEnrollDate, curEnrollDate)) controller.setEnrollmentDate(id, newEnrollDate);
 
-            String rawEmail = InputUtils.readLine(scanner, "Email [" + text(s.getEmail()) + "]: ");
+            String rawEmail = InputUtils.readLine(scanner, "Email [" + TextUtils.orEmpty(s.getEmail()) + "]: ");
             if (!rawEmail.isEmpty()) controller.setEmail(id, rawEmail);
 
-            String rawPhone = InputUtils.readLine(scanner, "Phone [" + text(s.getPhone()) + "]: ");
+            String rawPhone = InputUtils.readLine(scanner, "Phone [" + TextUtils.orEmpty(s.getPhone()) + "]: ");
             if (!rawPhone.isEmpty()) controller.setPhone(id, rawPhone);
 
             boolean newActive = InputUtils.readYesNo(scanner, "Active?", curActive);
@@ -213,14 +214,14 @@ public class StudentView {
         for (Student s : list) {
             double gpa = controller.getGpa(s.getId());
             rows.add(new String[]{
-                    text(s.getId()),
+                    TextUtils.orEmpty(s.getId()),
                     s.getFullName(),
                     s.getGender() == null ? "" : s.getGender().name(),
-                    text(s.getDepartment()),
-                    text(s.getProgram()),
+                    TextUtils.orEmpty(s.getDepartment()),
+                    TextUtils.orEmpty(s.getProgram()),
                     String.valueOf(s.getYearLevel()),
-                    text(s.getCurrentSemester()),
-                    text(s.getEmail()),
+                    TextUtils.orEmpty(s.getCurrentSemester()),
+                    TextUtils.orEmpty(s.getEmail()),
                     String.valueOf(s.isActive()),
                     String.valueOf(controller.getStoredCredits(s.getId())),
                     String.format(Locale.US, "%.2f", gpa)
@@ -236,23 +237,19 @@ public class StudentView {
         System.out.println("Name:             " + s.getFullName());
         System.out.println("Gender:           " + (s.getGender() == null ? "" : s.getGender()));
         System.out.println("Date of birth:    " + (s.getDateOfBirth() == null ? "" : s.getDateOfBirth()));
-        System.out.println("Department:       " + text(s.getDepartment()));
-        System.out.println("Program:          " + text(s.getProgram()));
+        System.out.println("Department:       " + TextUtils.orEmpty(s.getDepartment()));
+        System.out.println("Program:          " + TextUtils.orEmpty(s.getProgram()));
         System.out.println("Year level:       " + s.getYearLevel());
-        System.out.println("Current semester: " + text(s.getCurrentSemester()));
+        System.out.println("Current semester: " + TextUtils.orEmpty(s.getCurrentSemester()));
         System.out.println("Enrollment date:  " + (s.getEnrollmentDate() == null ? "" : s.getEnrollmentDate()));
-        System.out.println("Email:            " + text(s.getEmail()));
-        System.out.println("Phone:            " + text(s.getPhone()));
+        System.out.println("Email:            " + TextUtils.orEmpty(s.getEmail()));
+        System.out.println("Phone:            " + TextUtils.orEmpty(s.getPhone()));
         System.out.println("Active:           " + s.isActive());
         System.out.println("GPA (computed):   " + String.format(Locale.US, "%.2f", gpa));
         System.out.println("Credits computed: " + computedCredits + " | stored: " + controller.getStoredCredits(s.getId()));
     }
 
     // ===== Internal helpers =====
-
-    private static String text(String value) {
-        return value == null ? "" : value;
-    }
 
     private static boolean sameDate(LocalDate a, LocalDate b) {
         if (a == null && b == null) return true;

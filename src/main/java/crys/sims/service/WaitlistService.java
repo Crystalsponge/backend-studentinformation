@@ -12,6 +12,7 @@ import java.util.List;
  * FIFO waitlist for full subject offerings, backed by ArrayQueue.
  * The live queue is the source of truth for order; the file mirrors it
  * (saved on every mutation, rebuilt from file order on startup).
+ * Key equality reuses WaitlistEntry.equals (student+subject+semester).
  */
 public class WaitlistService {
 
@@ -30,8 +31,7 @@ public class WaitlistService {
 
     public void join(WaitlistEntry entry) throws IOException {
         for (int i = 0; i < queue.size(); i++) {
-            WaitlistEntry q = queue.get(i);
-            if (sameKey(q, entry)) {
+            if (queue.get(i).equals(entry)) {
                 throw new IllegalArgumentException("Already on waitlist for "
                         + entry.getSubjectId() + " (" + entry.getSemester() + ").");
             }
@@ -75,7 +75,7 @@ public class WaitlistService {
         queue.removeFirstMatch(new ArrayQueue.Matcher<WaitlistEntry>() {
             @Override
             public boolean matches(WaitlistEntry item) {
-                return sameKey(item, head);
+                return item.equals(head);
             }
         });
         save();
@@ -87,17 +87,11 @@ public class WaitlistService {
         boolean removed = queue.removeFirstMatch(new ArrayQueue.Matcher<WaitlistEntry>() {
             @Override
             public boolean matches(WaitlistEntry item) {
-                return sameKey(item, key);
+                return item.equals(key);
             }
         });
         if (removed) save();
         return removed;
-    }
-
-    private static boolean sameKey(WaitlistEntry a, WaitlistEntry b) {
-        return a.getStudentId() != null && a.getStudentId().equals(b.getStudentId())
-                && a.getSubjectId() != null && a.getSubjectId().equals(b.getSubjectId())
-                && a.getSemester() != null && a.getSemester().equals(b.getSemester());
     }
 
     private void save() throws IOException {
