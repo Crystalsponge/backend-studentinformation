@@ -66,6 +66,14 @@ public final class InputUtils {
         }
     }
 
+    public static int readOptionalInt(Scanner scanner, String prompt, int current, int min) {
+        while (true) {
+            int v = readOptionalInt(scanner, prompt, current);
+            if (v == current || v >= min) return v;
+            System.out.println("  Must be >= " + min + ". Try again (empty keeps current).");
+        }
+    }
+
     public static LocalDate readOptionalDate(Scanner scanner, String prompt) {
         while (true) {
             String v = readLine(scanner, prompt + " (yyyy-MM-dd, empty = none): ");

@@ -117,7 +117,9 @@ public class SubjectView {
             if (!rawDept.isEmpty()) controller.setDepartment(id, rawDept);
 
             List<String> newPrereqs = readOptionalPrereqIds(s.getId(), s.getPrerequisiteIds());
-            if (newPrereqs != null) controller.setPrerequisiteIds(id, newPrereqs);
+            if (newPrereqs != null && !newPrereqs.equals(s.getPrerequisiteIds())) {
+                controller.setPrerequisiteIds(id, newPrereqs);
+            }
 
             String rawSem = InputUtils.readLine(scanner, "Semester offered [" + TextUtils.orEmpty(s.getSemesterOffered()) + "]: ");
             if (!rawSem.isEmpty()) controller.setSemesterOffered(id, rawSem);
@@ -142,6 +144,11 @@ public class SubjectView {
             return;
         }
         printSubjectInfo(s);
+        String blockReason = controller.getDeleteBlockReason(s.getId());
+        if (blockReason != null) {
+            System.out.println("  " + blockReason);
+            return;
+        }
         boolean confirm = InputUtils.readYesNo(
                 scanner, "Delete " + s.getId() + " (" + TextUtils.orEmpty(s.getCode()) + " " + TextUtils.orEmpty(s.getName()) + ")?", false);
         if (!confirm) {

@@ -195,6 +195,19 @@ public class SubjectController {
 
     public void delete(String id) throws IOException {
         Subject s = requireById(id);
+        String reason = getDeleteBlockReason(s.getId());
+        if (reason != null) {
+            throw new IllegalArgumentException(reason);
+        }
+        subjects.remove(s);
+        save();
+    }
+
+    /**
+     * @return null when the subject can be deleted, otherwise the reason why not.
+     */
+    public String getDeleteBlockReason(String id) {
+        Subject s = requireById(id);
         int enr = 0;
         for (Enrollment e : enrollments) {
             if (s.getId().equals(e.getSubjectId())) enr++;
@@ -205,12 +218,11 @@ public class SubjectController {
         }
         int wl = waitlist == null ? 0 : waitlist.sizeTotal(s.getId());
         if (enr > 0 || rec > 0 || wl > 0) {
-            throw new IllegalArgumentException("Cannot delete " + s.getId() + ": "
+            return "Cannot delete " + s.getId() + ": "
                     + enr + " enrollment(s), " + rec + " record(s), " + wl
-                    + " waiter(s). Remove them first.");
+                    + " waiter(s). Remove them first.";
         }
-        subjects.remove(s);
-        save();
+        return null;
     }
 
     // ===== Internals =====

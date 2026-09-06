@@ -1,54 +1,29 @@
 package crys.sims.view;
 
+import crys.sims.controller.FacultyController;
 import crys.sims.model.Department;
-import crys.sims.model.Enrollment;
 import crys.sims.model.Faculty;
 import crys.sims.model.Subject;
-import crys.sims.service.FileService;
 import crys.sims.utils.FormatUtils;
-import crys.sims.utils.IdGenerator;
 import crys.sims.utils.InputUtils;
 import crys.sims.utils.TextUtils;
-import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 /**
  * Console UI for Faculty CRUD, Department management, and hierarchy browsing.
- * Temporary: talks directly to the in-memory lists + FileService.
- * A FacultyController will take over business logic later; this view keeps only I/O.
- *
- * Sync contract: Department.facultyId is authoritative. Every department
- * mutation rebuilds each Faculty.departmentIds via syncFacultyDepartments()
- * and saves both files.
+ * I/O only: all business logic and persistence live in FacultyController.
  */
 public class FacultyView {
 
-    private final List<Faculty> faculties;
-    private final Path facultiesPath;
-    private final List<Department> departments;
-    private final Path departmentsPath;
-    private final List<Subject> subjects;
-    private final List<Enrollment> enrollments;
+    private final FacultyController controller;
     private final Scanner scanner;
 
-    public FacultyView(List<Faculty> faculties, Path facultiesPath,
-                       List<Department> departments, Path departmentsPath,
-                       List<Subject> subjects, List<Enrollment> enrollments,
-                       Scanner scanner) {
-        this.faculties = faculties;
-        this.facultiesPath = facultiesPath;
-        this.departments = departments;
-        this.departmentsPath = departmentsPath;
-        this.subjects = subjects;
-        this.enrollments = enrollments;
+    public FacultyView(FacultyController controller, Scanner scanner) {
+        this.controller = controller;
         this.scanner = scanner;
     }
 
@@ -80,33 +55,29 @@ public class FacultyView {
         }
     }
 
-    // ===== Faculty actions =====
+    // ===== Faculty actions (I/O only) =====
 
     private void listAll() {
         FormatUtils.printHeader("ALL FACULTIES");
-        printFaculties(faculties);
+        printFaculties(controller.getAll());
     }
 
     private void addFaculty() {
         FormatUtils.printHeader("ADD FACULTY");
         try {
-            List<String> ids = faculties.stream().map(Faculty::getId).collect(Collectors.toList());
-            String id = IdGenerator.nextId(ids, "F", 3);
-            System.out.println("Assigned ID: " + id);
-            String name = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "Name: "), "name");
-            faculties.add(new Faculty(id, name, new ArrayList<>()));
-            if (saveFaculties()) {
-                System.out.println("  Added faculty " + id);
-            }
+            String name = InputUtils.readRequiredLine(scanner, "Name: ");
+            Faculty f = controller.add(name);
+            System.out.println("  Added faculty " + f.getId());
         } catch (IllegalArgumentException e) {
             System.out.println("  Invalid input: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void viewById() {
         String id = InputUtils.readRequiredLine(scanner, "Faculty ID: ");
-        Faculty f = findFaculty(id);
+        Faculty f = controller.getById(id);
         if (f == null) {
             System.out.println("  Not found: " + id);
             return;
@@ -116,7 +87,7 @@ public class FacultyView {
 
     private void updateFaculty() {
         String id = InputUtils.readRequiredLine(scanner, "Faculty ID to update: ");
-        Faculty f = findFaculty(id);
+        Faculty f = controller.getById(id);
         if (f == null) {
             System.out.println("  Not found: " + id);
             return;
@@ -124,25 +95,27 @@ public class FacultyView {
         printFacultyInfo(f);
         try {
             String rawName = InputUtils.readLine(scanner, "Name [" + TextUtils.orEmpty(f.getName()) + "]: ");
-            String newName = rawName.isEmpty() ? f.getName()
-                    : ValidationUtils.cleanField(rawName, "name");
-            f.setName(newName);
-            if (saveFaculties()) {
-                System.out.println("  Updated " + f.getId());
+            if (rawName.isEmpty()) {
+                System.out.println("  Nothing changed.");
+                return;
             }
+            controller.setName(id, rawName);
+            System.out.println("  Updated " + id);
         } catch (IllegalArgumentException e) {
             System.out.println("  Invalid input: " + e.getMessage() + " — nothing changed.");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void deleteFaculty() {
         String id = InputUtils.readRequiredLine(scanner, "Faculty ID to delete: ");
-        Faculty f = findFaculty(id);
+        Faculty f = controller.getById(id);
         if (f == null) {
             System.out.println("  Not found: " + id);
             return;
         }
-        List<Department> attached = departmentsOf(f.getId());
+        List<Department> attached = controller.getDepartmentsByFaculty(f.getId());
         if (!attached.isEmpty()) {
             System.out.println("  Cannot delete: faculty still has " + attached.size() + " department(s):");
             for (Department d : attached) {
@@ -158,9 +131,13 @@ public class FacultyView {
             System.out.println("  Cancelled.");
             return;
         }
-        faculties.remove(f);
-        if (saveFaculties()) {
+        try {
+            controller.delete(id);
             System.out.println("  Deleted " + id);
+        } catch (IllegalArgumentException e) {
+            System.out.println("  " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
@@ -188,70 +165,54 @@ public class FacultyView {
 
     private void listDepartments() {
         FormatUtils.printHeader("ALL DEPARTMENTS");
-        printDepartments(departments);
+        printDepartments(controller.getAllDepartments());
     }
 
     private void addDepartment() {
         FormatUtils.printHeader("ADD DEPARTMENT");
         try {
-            List<String> ids = departments.stream().map(Department::getId).collect(Collectors.toList());
-            String id = IdGenerator.nextId(ids, "D", 3);
-            System.out.println("Assigned ID: " + id);
-            String name = ValidationUtils.cleanField(
-                    InputUtils.readRequiredLine(scanner, "Name: "), "name");
-            Faculty owner = readExistingFaculty();
-            departments.add(new Department(id, name, owner.getId()));
-            syncFacultyDepartments();
-            if (saveBoth()) {
-                System.out.println("  Added department " + id + " under " + owner.getId());
-            }
+            String name = InputUtils.readRequiredLine(scanner, "Name: ");
+            String facultyId = readExistingFacultyId();
+            Department d = controller.addDepartment(name, facultyId);
+            System.out.println("  Added department " + d.getId() + " under " + d.getFacultyId());
         } catch (IllegalArgumentException e) {
             System.out.println("  Invalid input: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void updateDepartment() {
         String id = InputUtils.readRequiredLine(scanner, "Department ID to update: ");
-        Department d = findDepartment(id);
+        Department d = controller.getDepartmentById(id);
         if (d == null) {
             System.out.println("  Not found: " + id);
             return;
         }
         try {
             String rawName = InputUtils.readLine(scanner, "Name [" + TextUtils.orEmpty(d.getName()) + "]: ");
-            String newName = rawName.isEmpty() ? d.getName()
-                    : ValidationUtils.cleanField(rawName, "name");
+            if (!rawName.isEmpty()) controller.setDepartmentName(id, rawName);
 
             String rawFac = InputUtils.readLine(scanner, "Faculty ID [" + TextUtils.orEmpty(d.getFacultyId()) + "]: ");
-            String newFacId = d.getFacultyId();
-            if (!rawFac.isEmpty()) {
-                Faculty owner = findFaculty(rawFac);
-                if (owner == null) {
-                    System.out.println("  Unknown faculty ID: " + rawFac.trim() + " — nothing changed.");
-                    return;
-                }
-                newFacId = owner.getId();
-            }
+            if (!rawFac.isEmpty()) controller.moveDepartment(id, rawFac);
 
-            d.setName(newName);
-            d.setFacultyId(newFacId);
-            syncFacultyDepartments();
-            if (saveBoth()) {
-                System.out.println("  Updated " + d.getId());
-            }
+            System.out.println("  Updated " + id);
         } catch (IllegalArgumentException e) {
-            System.out.println("  Invalid input: " + e.getMessage() + " — nothing changed.");
+            System.out.println("  Invalid input: " + e.getMessage()
+                    + " — earlier fields may already be saved; re-run to fix.");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void deleteDepartment() {
         String id = InputUtils.readRequiredLine(scanner, "Department ID to delete: ");
-        Department d = findDepartment(id);
+        Department d = controller.getDepartmentById(id);
         if (d == null) {
             System.out.println("  Not found: " + id);
             return;
         }
-        List<Subject> using = subjectsOf(d.getId());
+        List<Subject> using = controller.getSubjectsOf(d.getId());
         if (!using.isEmpty()) {
             System.out.println("  Cannot delete: " + using.size() + " subject(s) reference this department:");
             for (Subject s : using) {
@@ -266,10 +227,13 @@ public class FacultyView {
             System.out.println("  Cancelled.");
             return;
         }
-        departments.remove(d);
-        syncFacultyDepartments();
-        if (saveBoth()) {
+        try {
+            controller.deleteDepartment(id);
             System.out.println("  Deleted " + id);
+        } catch (IllegalArgumentException e) {
+            System.out.println("  " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
@@ -277,23 +241,23 @@ public class FacultyView {
 
     private void browseHierarchy() {
         FormatUtils.printHeader("FACULTY / DEPARTMENT HIERARCHY");
-        for (Faculty f : faculties) {
+        for (Faculty f : controller.getAll()) {
             System.out.println(TextUtils.orEmpty(f.getName()) + " (" + TextUtils.orEmpty(f.getId()) + ")");
-            List<Department> depts = departmentsOf(f.getId());
+            List<Department> depts = controller.getDepartmentsByFaculty(f.getId());
             if (depts.isEmpty()) {
                 System.out.println("  (no departments)");
             }
             for (Department d : depts) {
-                List<Subject> subs = subjectsOf(d.getId());
+                List<Subject> subs = controller.getSubjectsOf(d.getId());
                 System.out.println("  " + TextUtils.orEmpty(d.getId()) + " " + TextUtils.orEmpty(d.getName())
                         + " [" + subs.size() + " subject(s)]");
                 for (Subject s : subs) {
                     System.out.println("    " + TextUtils.orEmpty(s.getCode()) + " " + TextUtils.orEmpty(s.getName())
-                            + " (" + s.getCredits() + " cr, " + enrollmentCount(s.getId()) + " enrolled)");
+                            + " (" + s.getCredits() + " cr, " + controller.getEnrollmentCount(s.getId()) + " enrolled)");
                 }
             }
         }
-        List<Department> orphans = orphanDepartments();
+        List<Department> orphans = controller.getOrphanDepartments();
         if (!orphans.isEmpty()) {
             System.out.println("Departments with unknown faculty:");
             for (Department d : orphans) {
@@ -305,19 +269,11 @@ public class FacultyView {
 
     private void search() {
         String q = InputUtils.readRequiredLine(scanner, "Search (faculty/department id or name): ");
-        List<Faculty> facHits = new ArrayList<>();
-        for (Faculty f : faculties) {
-            if (TextUtils.containsIgnoreCase(f.getId(), q) || TextUtils.containsIgnoreCase(f.getName(), q)) facHits.add(f);
-        }
-        List<Department> deptHits = new ArrayList<>();
-        for (Department d : departments) {
-            if (TextUtils.containsIgnoreCase(d.getId(), q) || TextUtils.containsIgnoreCase(d.getName(), q)) deptHits.add(d);
-        }
         FormatUtils.printHeader("SEARCH RESULTS");
         System.out.println("-- Faculties --");
-        printFaculties(facHits);
+        printFaculties(controller.searchFaculties(q));
         System.out.println("-- Departments --");
-        printDepartments(deptHits);
+        printDepartments(controller.searchDepartments(q));
     }
 
     // ===== Display helpers =====
@@ -329,7 +285,7 @@ public class FacultyView {
             rows.add(new String[]{
                     TextUtils.orEmpty(f.getId()),
                     TextUtils.orEmpty(f.getName()),
-                    String.valueOf(departmentsOf(f.getId()).size())
+                    String.valueOf(controller.getDepartmentsByFaculty(f.getId()).size())
             });
         }
         FormatUtils.printTable(headers, rows);
@@ -339,7 +295,7 @@ public class FacultyView {
         String[] headers = {"ID", "Name", "Faculty", "Subjects"};
         List<String[]> rows = new ArrayList<>();
         for (Department d : list) {
-            Faculty owner = d.getFacultyId() == null ? null : findFaculty(d.getFacultyId());
+            Faculty owner = controller.getById(d.getFacultyId());
             String facShown = owner == null
                     ? "MISSING (" + TextUtils.orEmpty(d.getFacultyId()) + ")"
                     : owner.getId() + " " + TextUtils.orEmpty(owner.getName());
@@ -347,7 +303,7 @@ public class FacultyView {
                     TextUtils.orEmpty(d.getId()),
                     TextUtils.orEmpty(d.getName()),
                     facShown,
-                    String.valueOf(subjectsOf(d.getId()).size())
+                    String.valueOf(controller.getSubjectCount(d.getId()))
             });
         }
         FormatUtils.printTable(headers, rows);
@@ -356,119 +312,24 @@ public class FacultyView {
     private void printFacultyInfo(Faculty f) {
         FormatUtils.printHeader("FACULTY INFO: " + f.getId());
         System.out.println("Name:        " + TextUtils.orEmpty(f.getName()));
-        List<Department> depts = departmentsOf(f.getId());
+        List<Department> depts = controller.getDepartmentsByFaculty(f.getId());
         System.out.println("Departments (" + depts.size() + "):");
         if (depts.isEmpty()) {
             System.out.println("  (none)");
         }
         for (Department d : depts) {
             System.out.println("  " + TextUtils.orEmpty(d.getId()) + " " + TextUtils.orEmpty(d.getName())
-                    + " [" + subjectsOf(d.getId()).size() + " subject(s)]");
+                    + " [" + controller.getSubjectCount(d.getId()) + " subject(s)]");
         }
     }
 
     // ===== Input helpers =====
 
-    private Faculty readExistingFaculty() {
+    private String readExistingFacultyId() {
         while (true) {
             String fid = InputUtils.readRequiredLine(scanner, "Faculty ID: ");
-            Faculty owner = findFaculty(fid);
-            if (owner != null) return owner;
+            if (controller.getById(fid) != null) return fid;
             System.out.println("  Unknown faculty ID: " + fid + " (add it first).");
         }
-    }
-
-    // ===== Sync + save =====
-
-    private void syncFacultyDepartments() {
-        Map<String, List<String>> byFaculty = new HashMap<>();
-        for (Department d : departments) {
-            byFaculty.computeIfAbsent(TextUtils.orEmpty(d.getFacultyId()), k -> new ArrayList<>()).add(d.getId());
-        }
-        for (Faculty f : faculties) {
-            List<String> ids = byFaculty.getOrDefault(f.getId(), new ArrayList<>());
-            f.setDepartmentIds(new ArrayList<>(ids));
-        }
-    }
-
-    private boolean saveFaculties() {
-        try {
-            FileService.saveFaculties(facultiesPath, faculties);
-            return true;
-        } catch (IOException e) {
-            System.out.println("  Save failed: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean saveBoth() {
-        try {
-            FileService.saveFaculties(facultiesPath, faculties);
-            FileService.saveDepartments(departmentsPath, departments);
-            return true;
-        } catch (IOException e) {
-            System.out.println("  Save failed: " + e.getMessage());
-            return false;
-        }
-    }
-
-    // ===== Internal helpers =====
-
-    private Faculty findFaculty(String id) {
-        for (Faculty f : faculties) {
-            if (f.getId() != null && f.getId().equalsIgnoreCase(id.trim())) {
-                return f;
-            }
-        }
-        return null;
-    }
-
-    private Department findDepartment(String id) {
-        for (Department d : departments) {
-            if (d.getId() != null && d.getId().equalsIgnoreCase(id.trim())) {
-                return d;
-            }
-        }
-        return null;
-    }
-
-    private List<Department> departmentsOf(String facultyId) {
-        List<Department> result = new ArrayList<>();
-        for (Department d : departments) {
-            if (facultyId != null && facultyId.equals(d.getFacultyId())) {
-                result.add(d);
-            }
-        }
-        return result;
-    }
-
-    private List<Department> orphanDepartments() {
-        List<Department> result = new ArrayList<>();
-        for (Department d : departments) {
-            if (findFaculty(TextUtils.orEmpty(d.getFacultyId())) == null) {
-                result.add(d);
-            }
-        }
-        return result;
-    }
-
-    private List<Subject> subjectsOf(String departmentId) {
-        List<Subject> result = new ArrayList<>();
-        for (Subject s : subjects) {
-            if (departmentId != null && departmentId.equals(s.getDepartment())) {
-                result.add(s);
-            }
-        }
-        return result;
-    }
-
-    private int enrollmentCount(String subjectId) {
-        int n = 0;
-        for (Enrollment e : enrollments) {
-            if (subjectId != null && subjectId.equals(e.getSubjectId())) {
-                n++;
-            }
-        }
-        return n;
     }
 }

@@ -127,7 +127,7 @@ public class TranscriptView {
             System.out.println("  Not found: " + id);
             return;
         }
-        int requiredCredits = InputUtils.readOptionalInt(scanner, "Required credits", 120);
+        int requiredCredits = InputUtils.readOptionalInt(scanner, "Required credits", 120, 0);
         String rawRequired = InputUtils.readLine(scanner, "Required subject IDs (comma-separated, empty = none): ");
         List<String> requiredIds = new ArrayList<>();
         if (!rawRequired.isEmpty()) {
