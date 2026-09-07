@@ -36,6 +36,7 @@ public final class InputUtils {
                 int n = Integer.parseInt(v);
                 if (n >= min && n <= max) return n;
             } catch (NumberFormatException ignored) {
+                // Not a number — fall through to the retry prompt.
             }
             System.out.println("  Enter a number between " + min + " and " + max + ".");
         }

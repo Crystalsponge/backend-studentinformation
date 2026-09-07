@@ -3,7 +3,6 @@ package crys.sims.controller;
 import crys.sims.model.AcademicRecord;
 import crys.sims.model.Enrollment;
 import crys.sims.model.Subject;
-import crys.sims.model.WaitlistEntry;
 import crys.sims.service.FileService;
 import crys.sims.service.WaitlistService;
 import crys.sims.utils.IdGenerator;

@@ -12,7 +12,6 @@ import crys.sims.model.Enrollment;
 import crys.sims.model.Faculty;
 import crys.sims.model.Student;
 import crys.sims.model.Subject;
-import crys.sims.model.WaitlistEntry;
 import crys.sims.service.FileService;
 import crys.sims.service.WaitlistService;
 import crys.sims.view.EnrollmentView;

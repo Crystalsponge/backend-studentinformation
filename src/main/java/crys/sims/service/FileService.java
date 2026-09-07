@@ -49,7 +49,13 @@ public final class FileService {
     private static void writeLinesAtomic(Path path, List<String> lines) throws IOException {
         ensureParent(path);
         Path tmp = path.resolveSibling(path.getFileName().toString() + ".tmp");
-        Files.write(tmp, lines, StandardCharsets.UTF_8);
+        // Explicit LF (not Files.write's platform separator) so files are
+        // byte-identical on every OS and git never flags phantom changes.
+        StringBuilder out = new StringBuilder();
+        for (String line : lines) {
+            out.append(line == null ? "" : line).append('\n');
+        }
+        Files.write(tmp, out.toString().getBytes(StandardCharsets.UTF_8));
         try {
             try {
                 Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
