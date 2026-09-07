@@ -1,3 +1,0 @@
-D001;Computer Science;F001
-D002;Information Technology;F001
-D003;Civil Engineering;F002
