@@ -239,6 +239,9 @@ public class SubjectController {
         List<String> ids = prerequisiteIds == null ? new ArrayList<>() : new ArrayList<>(prerequisiteIds);
         ValidationUtils.checkList(ids, "prerequisiteIds");
         for (String pid : ids) {
+            if (pid == null || pid.trim().isEmpty()) {
+                throw new IllegalArgumentException("Prerequisite IDs must not be blank.");
+            }
             if (pid.equalsIgnoreCase(selfId)) {
                 throw new IllegalArgumentException("Subject cannot be its own prerequisite.");
             }

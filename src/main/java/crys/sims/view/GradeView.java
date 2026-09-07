@@ -1,19 +1,17 @@
 package crys.sims.view;
 
+import crys.sims.controller.GradeController;
 import crys.sims.model.AcademicRecord;
 import crys.sims.model.Enrollment;
 import crys.sims.model.Student;
 import crys.sims.model.Subject;
 import crys.sims.model.enums.GRADE;
-import crys.sims.service.FileService;
-import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
 import crys.sims.utils.TextUtils;
 import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -22,34 +20,15 @@ import java.util.Scanner;
 /**
  * Console UI for grade management: assign/update/delete grade records,
  * GPA + credit summaries, and earned-credit resync.
- * Temporary: talks directly to the in-memory lists + FileService.
- * A GradeController will take over business logic later; this view keeps only I/O.
- *
- * Assigning a grade creates (or updates) the AcademicRecord, removes the
- * matching enrollment, and resyncs the student's cached earnedCredits.
+ * I/O only: all business logic and persistence live in GradeController.
  */
 public class GradeView {
 
-    private final List<AcademicRecord> records;
-    private final Path recordsPath;
-    private final List<Enrollment> enrollments;
-    private final Path enrollmentsPath;
-    private final List<Student> students;
-    private final Path studentsPath;
-    private final List<Subject> subjects;
+    private final GradeController controller;
     private final Scanner scanner;
 
-    public GradeView(List<AcademicRecord> records, Path recordsPath,
-                     List<Enrollment> enrollments, Path enrollmentsPath,
-                     List<Student> students, Path studentsPath,
-                     List<Subject> subjects, Scanner scanner) {
-        this.records = records;
-        this.recordsPath = recordsPath;
-        this.enrollments = enrollments;
-        this.enrollmentsPath = enrollmentsPath;
-        this.students = students;
-        this.studentsPath = studentsPath;
-        this.subjects = subjects;
+    public GradeView(GradeController controller, Scanner scanner) {
+        this.controller = controller;
         this.scanner = scanner;
     }
 
@@ -75,11 +54,11 @@ public class GradeView {
         }
     }
 
-    // ===== Actions =====
+    // ===== Actions (I/O only) =====
 
     private void viewByStudent() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(id);
+        Student stu = controller.findStudent(id);
         if (stu == null) {
             System.out.println("  Not found: " + id);
             return;
@@ -90,7 +69,7 @@ public class GradeView {
     private void assignGrade() {
         FormatUtils.printHeader("ASSIGN GRADE");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(sid);
+        Student stu = controller.findStudent(sid);
         if (stu == null) {
             System.out.println("  Not found: " + sid);
             return;
@@ -98,7 +77,7 @@ public class GradeView {
         Subject subj = readSubject();
         if (subj == null) return;
 
-        List<Enrollment> matches = enrollmentsOf(stu.getId(), subj.getId());
+        List<Enrollment> matches = controller.getEnrollments(stu.getId(), subj.getId());
         String sem;
         if (matches.size() == 1) {
             sem = matches.get(0).getSemester();
@@ -115,76 +94,76 @@ public class GradeView {
         }
 
         GRADE grade = readGrade();
-        AcademicRecord existing = findRecord(stu.getId(), subj.getId(), sem);
-        if (existing != null) {
-            System.out.println("  Record already has grade " + existing.getGrade() + " — overwriting.");
-            existing.setGrade(grade);
-        } else {
-            records.add(new AcademicRecord(stu.getId(), subj.getId(), sem, grade));
-        }
-        int removed = removeEnrollments(stu.getId(), subj.getId(), sem);
-        syncCredits(stu);
-        if (saveAll()) {
-            System.out.println("  Graded " + stu.getId() + " " + subj.getCode() + " (" + sem + ") = " + grade
-                    + (removed > 0 ? " [" + removed + " enrollment(s) closed]" : ""));
+        try {
+            AcademicRecord record = controller.assignGrade(stu.getId(), subj.getId(), sem, grade);
+            System.out.println("  Graded " + record.getStudentId() + " " + subj.getCode()
+                    + " (" + record.getSemester() + ") = " + record.getGrade());
+        } catch (IllegalArgumentException e) {
+            System.out.println("  Invalid input: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void updateGrade() {
         FormatUtils.printHeader("UPDATE GRADE");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(sid);
+        Student stu = controller.findStudent(sid);
         if (stu == null) {
             System.out.println("  Not found: " + sid);
             return;
         }
         Subject subj = readSubject();
         if (subj == null) return;
-        List<AcademicRecord> matches = recordsOf(stu.getId(), subj.getId());
+        List<AcademicRecord> matches = controller.getRecords(stu.getId(), subj.getId());
         if (matches.isEmpty()) {
             System.out.println("  No grade record for " + stu.getId() + " in " + subj.getCode() + ".");
             return;
         }
-        AcademicRecord target = matches.get(0);
+        String sem = matches.get(0).getSemester();
         if (matches.size() > 1) {
             printGrades(stu);
-            String sem = InputUtils.readRequiredLine(scanner, "Which semester: ");
-            target = findRecord(stu.getId(), subj.getId(), sem);
-            if (target == null) {
-                System.out.println("  No record in semester: " + sem);
-                return;
-            }
+            sem = InputUtils.readRequiredLine(scanner, "Which semester: ");
         }
-        System.out.println("  Current grade: " + target.getGrade());
+        AcademicRecord current = controller.getRecord(stu.getId(), subj.getId(), sem);
+        if (current == null) {
+            System.out.println("  No record in semester: " + sem);
+            return;
+        }
+        System.out.println("  Current grade: " + current.getGrade());
         GRADE grade = readGrade();
-        target.setGrade(grade);
-        syncCredits(stu);
-        if (saveAll()) {
-            System.out.println("  Updated " + stu.getId() + " " + subj.getCode()
-                    + " (" + target.getSemester() + ") = " + grade);
+        try {
+            AcademicRecord updated = controller.updateGrade(stu.getId(), subj.getId(), sem, grade);
+            System.out.println("  Updated " + updated.getStudentId() + " " + subj.getCode()
+                    + " (" + updated.getSemester() + ") = " + updated.getGrade());
+        } catch (IllegalArgumentException e) {
+            System.out.println("  Invalid input: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void deleteRecord() {
         FormatUtils.printHeader("DELETE GRADE RECORD");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(sid);
+        Student stu = controller.findStudent(sid);
         if (stu == null) {
             System.out.println("  Not found: " + sid);
             return;
         }
         Subject subj = readSubject();
         if (subj == null) return;
-        List<AcademicRecord> matches = recordsOf(stu.getId(), subj.getId());
+        List<AcademicRecord> matches = controller.getRecords(stu.getId(), subj.getId());
         if (matches.isEmpty()) {
             System.out.println("  No grade record for " + stu.getId() + " in " + subj.getCode() + ".");
             return;
         }
         AcademicRecord target = matches.get(0);
+        String sem = target.getSemester();
         if (matches.size() > 1) {
             printGrades(stu);
-            String sem = InputUtils.readRequiredLine(scanner, "Which semester: ");
-            target = findRecord(stu.getId(), subj.getId(), sem);
+            sem = InputUtils.readRequiredLine(scanner, "Which semester: ");
+            target = controller.getRecord(stu.getId(), subj.getId(), sem);
             if (target == null) {
                 System.out.println("  No record in semester: " + sem);
                 return;
@@ -197,26 +176,26 @@ public class GradeView {
             System.out.println("  Cancelled.");
             return;
         }
-        records.remove(target);
-        syncCredits(stu);
-        if (saveAll()) {
+        try {
+            controller.deleteRecord(stu.getId(), subj.getId(), target.getSemester());
             System.out.println("  Deleted grade record.");
+        } catch (IllegalArgumentException e) {
+            System.out.println("  Invalid input: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void recalculateAll() {
         FormatUtils.printHeader("RECALCULATE EARNED CREDITS");
-        int changed = 0;
-        for (Student stu : students) {
-            int computed = AcademicUtils.calculateEarnedCredits(stu.getId(), records, subjects);
-            if (computed != stu.getEarnedCredits()) {
-                System.out.println("  " + stu.getId() + ": " + stu.getEarnedCredits() + " -> " + computed);
-                stu.setEarnedCredits(computed);
-                changed++;
+        try {
+            GradeController.RecalculateResult result = controller.recalculateAll();
+            for (GradeController.CreditChange change : result.changes) {
+                System.out.println("  " + change.studentId + ": " + change.oldCredits + " -> " + change.newCredits);
             }
-        }
-        if (saveStudents()) {
-            System.out.println("  Recalculated " + students.size() + " student(s), " + changed + " changed.");
+            System.out.println("  Recalculated " + result.total + " student(s), " + result.changes.size() + " changed.");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
@@ -226,9 +205,8 @@ public class GradeView {
         FormatUtils.printHeader("GRADES: " + stu.getId() + " " + stu.getFullName());
         String[] headers = {"Code", "Name", "Credits", "Sem", "Grade", "Points"};
         List<String[]> rows = new ArrayList<>();
-        for (AcademicRecord r : records) {
-            if (!stu.getId().equals(r.getStudentId())) continue;
-            Subject subj = findSubjectById(r.getSubjectId());
+        for (AcademicRecord r : controller.getGrades(stu.getId())) {
+            Subject subj = controller.findSubjectById(r.getSubjectId());
             rows.add(new String[]{
                     subj == null ? r.getSubjectId() : TextUtils.orEmpty(subj.getCode()),
                     subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName()),
@@ -239,10 +217,9 @@ public class GradeView {
             });
         }
         FormatUtils.printTable(headers, rows);
-        double gpa = AcademicUtils.calculateGpa(stu.getId(), records, subjects);
-        int computed = AcademicUtils.calculateEarnedCredits(stu.getId(), records, subjects);
-        System.out.println("  GPA: " + String.format(Locale.US, "%.2f", gpa));
-        System.out.println("  Credits computed: " + computed + " | stored: " + stu.getEarnedCredits());
+        System.out.println("  GPA: " + String.format(Locale.US, "%.2f", controller.getGpa(stu.getId())));
+        System.out.println("  Credits computed: " + controller.getEarnedCredits(stu.getId())
+                + " | stored: " + controller.getStoredCredits(stu.getId()));
     }
 
     // ===== Input helpers =====
@@ -260,108 +237,10 @@ public class GradeView {
 
     private Subject readSubject() {
         String input = InputUtils.readRequiredLine(scanner, "Subject ID or code: ");
-        Subject subj = findSubjectById(input);
-        if (subj == null) subj = findSubjectByCode(input);
+        Subject subj = controller.findSubject(input);
         if (subj == null) {
             System.out.println("  Not found: " + input);
         }
         return subj;
-    }
-
-    // ===== Internal helpers =====
-
-    private Student findStudent(String id) {
-        for (Student s : students) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private Subject findSubjectById(String id) {
-        for (Subject s : subjects) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private Subject findSubjectByCode(String code) {
-        for (Subject s : subjects) {
-            if (s.getCode() != null && s.getCode().equalsIgnoreCase(code.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private List<Enrollment> enrollmentsOf(String studentId, String subjectId) {
-        List<Enrollment> result = new ArrayList<>();
-        for (Enrollment e : enrollments) {
-            if (studentId.equals(e.getStudentId()) && subjectId.equals(e.getSubjectId())) {
-                result.add(e);
-            }
-        }
-        return result;
-    }
-
-    private List<AcademicRecord> recordsOf(String studentId, String subjectId) {
-        List<AcademicRecord> result = new ArrayList<>();
-        for (AcademicRecord r : records) {
-            if (studentId.equals(r.getStudentId()) && subjectId.equals(r.getSubjectId())) {
-                result.add(r);
-            }
-        }
-        return result;
-    }
-
-    private AcademicRecord findRecord(String studentId, String subjectId, String semester) {
-        for (AcademicRecord r : records) {
-            if (studentId.equals(r.getStudentId()) && subjectId.equals(r.getSubjectId())
-                    && semester.equalsIgnoreCase(r.getSemester())) {
-                return r;
-            }
-        }
-        return null;
-    }
-
-    private int removeEnrollments(String studentId, String subjectId, String semester) {
-        List<Enrollment> doomed = new ArrayList<>();
-        for (Enrollment e : enrollments) {
-            if (studentId.equals(e.getStudentId()) && subjectId.equals(e.getSubjectId())
-                    && semester.equalsIgnoreCase(e.getSemester())) {
-                doomed.add(e);
-            }
-        }
-        enrollments.removeAll(doomed);
-        return doomed.size();
-    }
-
-    private void syncCredits(Student stu) {
-        stu.setEarnedCredits(AcademicUtils.calculateEarnedCredits(stu.getId(), records, subjects));
-    }
-
-    private boolean saveAll() {
-        try {
-            FileService.saveAcademicRecords(recordsPath, records);
-            FileService.saveEnrollments(enrollmentsPath, enrollments);
-            FileService.saveStudents(studentsPath, students);
-            return true;
-        } catch (IOException e) {
-            System.out.println("  Save failed: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean saveStudents() {
-        try {
-            FileService.saveStudents(studentsPath, students);
-            return true;
-        } catch (IOException e) {
-            System.out.println("  Save failed: " + e.getMessage());
-            return false;
-        }
     }
 }

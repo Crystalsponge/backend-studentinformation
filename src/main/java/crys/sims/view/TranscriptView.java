@@ -1,44 +1,32 @@
 package crys.sims.view;
 
+import crys.sims.controller.EnrollmentController;
+import crys.sims.controller.TranscriptController;
 import crys.sims.model.AcademicRecord;
 import crys.sims.model.Enrollment;
 import crys.sims.model.Student;
 import crys.sims.model.Subject;
-import crys.sims.model.enums.GRADE;
-import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
 import crys.sims.utils.TextUtils;
-import crys.sims.utils.ValidationUtils;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Scanner;
-import java.util.TreeMap;
 
 /**
  * Console UI for academic transcripts, graduation progress, and subject suggestions.
- * Read-only: never mutates lists or files.
- * A TranscriptController will take over the logic later; this view keeps only I/O.
+ * Read-only: never mutates lists or files. Formats the DTOs returned by
+ * TranscriptController; suggestions delegate through it to EnrollmentController.
  */
 public class TranscriptView {
 
-    private final List<Student> students;
-    private final List<Subject> subjects;
-    private final List<AcademicRecord> records;
-    private final List<Enrollment> enrollments;
+    private final TranscriptController controller;
     private final Scanner scanner;
 
-    public TranscriptView(List<Student> students, List<Subject> subjects,
-                          List<AcademicRecord> records, List<Enrollment> enrollments,
-                          Scanner scanner) {
-        this.students = students;
-        this.subjects = subjects;
-        this.records = records;
-        this.enrollments = enrollments;
+    public TranscriptView(TranscriptController controller, Scanner scanner) {
+        this.controller = controller;
         this.scanner = scanner;
     }
 
@@ -60,36 +48,30 @@ public class TranscriptView {
         }
     }
 
-    // ===== Actions =====
+    // ===== Actions (I/O only) =====
 
     private void transcript() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(id);
-        if (stu == null) {
+        Student probe = controller.findStudent(id);
+        if (probe == null) {
             System.out.println("  Not found: " + id);
             return;
         }
+        TranscriptController.Transcript t = controller.getTranscript(probe.getId());
         FormatUtils.printHeader("ACADEMIC TRANSCRIPT");
-        System.out.println("Student:    " + stu.getId() + " " + stu.getFullName());
-        System.out.println("Program:    " + TextUtils.orEmpty(stu.getProgram()) + " | Department: " + TextUtils.orEmpty(stu.getDepartment()));
-        System.out.println("Year level: " + stu.getYearLevel() + " | Semester: " + TextUtils.orEmpty(stu.getCurrentSemester()));
+        System.out.println("Student:    " + t.student.getId() + " " + t.student.getFullName());
+        System.out.println("Program:    " + TextUtils.orEmpty(t.student.getProgram()) + " | Department: " + TextUtils.orEmpty(t.student.getDepartment()));
+        System.out.println("Year level: " + t.student.getYearLevel() + " | Semester: " + TextUtils.orEmpty(t.student.getCurrentSemester()));
         System.out.println();
 
-        Map<String, List<AcademicRecord>> bySemester = new TreeMap<>();
-        for (AcademicRecord r : records) {
-            if (stu.getId().equals(r.getStudentId())) {
-                bySemester.computeIfAbsent(TextUtils.orEmpty(r.getSemester()), k -> new ArrayList<>()).add(r);
-            }
-        }
-        if (bySemester.isEmpty()) {
+        if (t.blocks.isEmpty()) {
             System.out.println("  (no completed subjects)");
         }
-        for (Map.Entry<String, List<AcademicRecord>> entry : bySemester.entrySet()) {
-            String semLabel = entry.getKey().isEmpty() ? "(no semester)" : entry.getKey();
+        for (TranscriptController.SemesterBlock block : t.blocks) {
+            String semLabel = block.semester.isEmpty() ? "(no semester)" : block.semester;
             System.out.println("Semester " + semLabel + ":");
-            entry.getValue().sort(Comparator.comparing(r -> subjectCode(r.getSubjectId())));
-            for (AcademicRecord r : entry.getValue()) {
-                Subject subj = findSubjectById(r.getSubjectId());
+            for (AcademicRecord r : block.records) {
+                Subject subj = controller.findSubjectById(r.getSubjectId());
                 String code = subj == null ? r.getSubjectId() : TextUtils.orEmpty(subj.getCode());
                 String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
                 String credits = subj == null ? "?" : String.valueOf(subj.getCredits());
@@ -100,30 +82,24 @@ public class TranscriptView {
         }
         System.out.println();
         System.out.println("Currently enrolled:");
-        boolean anyEnrolled = false;
-        for (Enrollment e : enrollments) {
-            if (stu.getId().equals(e.getStudentId())) {
-                anyEnrolled = true;
-                Subject subj = findSubjectById(e.getSubjectId());
-                String code = subj == null ? e.getSubjectId() : TextUtils.orEmpty(subj.getCode());
-                String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
-                System.out.println("  " + code + " " + name + " (" + TextUtils.orEmpty(e.getSemester()) + ")");
-            }
-        }
-        if (!anyEnrolled) {
+        if (t.currentEnrollments.isEmpty()) {
             System.out.println("  (none)");
         }
+        for (Enrollment e : t.currentEnrollments) {
+            Subject subj = controller.findSubjectById(e.getSubjectId());
+            String code = subj == null ? e.getSubjectId() : TextUtils.orEmpty(subj.getCode());
+            String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
+            System.out.println("  " + code + " " + name + " (" + TextUtils.orEmpty(e.getSemester()) + ")");
+        }
         System.out.println();
-        double gpa = AcademicUtils.calculateGpa(stu.getId(), records, subjects);
-        int earned = AcademicUtils.calculateEarnedCredits(stu.getId(), records, subjects);
-        System.out.println("GPA: " + String.format(Locale.US, "%.2f", gpa));
-        System.out.println("Earned credits: " + earned);
+        System.out.println("GPA: " + String.format(Locale.US, "%.2f", t.gpa));
+        System.out.println("Earned credits: " + t.earnedCredits);
     }
 
     private void graduationProgress() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(id);
-        if (stu == null) {
+        Student probe = controller.findStudent(id);
+        if (probe == null) {
             System.out.println("  Not found: " + id);
             return;
         }
@@ -137,39 +113,39 @@ public class TranscriptView {
             }
         }
 
-        FormatUtils.printHeader("GRADUATION PROGRESS: " + stu.getId() + " " + stu.getFullName());
-        int earned = AcademicUtils.calculateEarnedCredits(stu.getId(), records, subjects);
-        int remaining = Math.max(0, requiredCredits - earned);
-        int pct = requiredCredits <= 0 ? 100 : Math.min(100, earned * 100 / requiredCredits);
-        System.out.println("Credits: " + earned + " / " + requiredCredits
-                + " (remaining " + remaining + ", " + pct + "%)");
+        TranscriptController.GraduationResult g;
+        try {
+            g = controller.getGraduationProgress(probe.getId(), requiredCredits, requiredIds);
+        } catch (IllegalArgumentException e) {
+            System.out.println("  Invalid input: " + e.getMessage());
+            return;
+        }
+        FormatUtils.printHeader("GRADUATION PROGRESS: " + probe.getId() + " " + probe.getFullName());
+        System.out.println("Credits: " + g.earned + " / " + g.required
+                + " (remaining " + g.remaining + ", " + g.pct + "%)");
 
-        List<String> missingSubjects = new ArrayList<>();
-        if (!requiredIds.isEmpty()) {
+        List<String> missingLabels = new ArrayList<>();
+        if (!g.subjects.isEmpty()) {
             System.out.println("Required subjects:");
-            for (String reqId : requiredIds) {
-                Subject subj = findSubjectById(reqId);
-                if (subj == null) subj = findSubjectByCode(reqId);
-                String label = subj == null ? reqId + " (unknown ID)"
-                        : subj.getCode() + " " + TextUtils.orEmpty(subj.getName());
-                GRADE best = bestGrade(stu.getId(), subj == null ? reqId : subj.getId());
-                if (best != null && best != GRADE.F) {
-                    System.out.println("  [x] " + label + " — " + best);
+            for (TranscriptController.RequiredSubject rs : g.subjects) {
+                String label = rs.subject == null ? rs.rawId + " (unknown ID)"
+                        : rs.subject.getCode() + " " + TextUtils.orEmpty(rs.subject.getName());
+                if (rs.done) {
+                    System.out.println("  [x] " + label + " — " + rs.bestGrade);
                 } else {
                     System.out.println("  [ ] " + label + " — missing");
-                    missingSubjects.add(label);
+                    missingLabels.add(label);
                 }
             }
         }
 
-        boolean eligible = remaining == 0 && missingSubjects.isEmpty();
         System.out.println();
-        System.out.println(eligible ? "Eligible for graduation: YES" : "Eligible for graduation: NO");
-        if (!eligible) {
-            if (remaining > 0) {
-                System.out.println("  - Needs " + remaining + " more credit(s).");
+        System.out.println(g.eligible ? "Eligible for graduation: YES" : "Eligible for graduation: NO");
+        if (!g.eligible) {
+            if (g.remaining > 0) {
+                System.out.println("  - Needs " + g.remaining + " more credit(s).");
             }
-            for (String label : missingSubjects) {
+            for (String label : missingLabels) {
                 System.out.println("  - Missing required subject: " + label + ".");
             }
         }
@@ -177,147 +153,47 @@ public class TranscriptView {
 
     private void suggestSubjects() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(id);
-        if (stu == null) {
+        Student probe = controller.findStudent(id);
+        if (probe == null) {
             System.out.println("  Not found: " + id);
             return;
         }
-        String sem = TextUtils.orEmpty(stu.getCurrentSemester());
+        String sem = TextUtils.orEmpty(probe.getCurrentSemester());
         if (sem.isEmpty()) {
             sem = InputUtils.readRequiredLine(scanner, "Target semester (e.g. 2024-1): ");
         } else {
             System.out.println("  Target semester: " + sem + " (student's current)");
         }
 
-        FormatUtils.printHeader("SUGGESTED SUBJECTS FOR " + stu.getId() + " (" + sem + ")");
+        FormatUtils.printHeader("SUGGESTED SUBJECTS FOR " + probe.getId() + " (" + sem + ")");
+        EnrollmentController.SuggestionResult result;
+        try {
+            result = controller.suggestSubjects(probe.getId(), sem);
+        } catch (IllegalArgumentException e) {
+            System.out.println("  " + e.getMessage());
+            return;
+        }
         String[] headers = {"Code", "Name", "Cr", "Prereqs", "Enr/Cap"};
         List<String[]> available = new ArrayList<>();
-        List<String[]> excluded = new ArrayList<>();
-        for (Subject subj : subjects) {
-            String reason = exclusionReason(stu, subj, sem);
+        for (EnrollmentController.AvailableSubject a : result.available) {
+            Subject subj = a.subject;
             String prereqs = (subj.getPrerequisiteIds() == null || subj.getPrerequisiteIds().isEmpty())
                     ? "-" : String.join(",", subj.getPrerequisiteIds());
-            if (reason == null) {
-                available.add(new String[]{
-                        TextUtils.orEmpty(subj.getCode()), TextUtils.orEmpty(subj.getName()),
-                        String.valueOf(subj.getCredits()), prereqs,
-                        enrollmentCount(subj.getId(), sem) + "/" + subj.getMaxCapacity()
-                });
-            } else {
-                excluded.add(new String[]{TextUtils.orEmpty(subj.getCode()), reason});
-            }
+            available.add(new String[]{
+                    TextUtils.orEmpty(subj.getCode()), TextUtils.orEmpty(subj.getName()),
+                    String.valueOf(subj.getCredits()), prereqs,
+                    a.enrolledInSemester + "/" + subj.getMaxCapacity()
+            });
         }
-        available.sort(Comparator.comparing(row -> row[0], String.CASE_INSENSITIVE_ORDER));
         System.out.println("-- Available --");
         FormatUtils.printTable(headers, available);
-        if (!excluded.isEmpty()) {
-            excluded.sort(Comparator.comparing(row -> row[0], String.CASE_INSENSITIVE_ORDER));
+        if (!result.excluded.isEmpty()) {
+            List<String[]> excluded = new ArrayList<>();
+            for (EnrollmentController.ExcludedSubject x : result.excluded) {
+                excluded.add(new String[]{TextUtils.orEmpty(x.subject.getCode()), x.reason});
+            }
             System.out.println("-- Excluded --");
             FormatUtils.printTable(new String[]{"Code", "Reason"}, excluded);
         }
-    }
-
-    // ===== Suggestion rules =====
-
-    private String exclusionReason(Student stu, Subject subj, String semester) {
-        for (AcademicRecord r : records) {
-            if (stu.getId().equals(r.getStudentId()) && subj.getId().equals(r.getSubjectId())
-                    && r.getGrade() != null && r.getGrade() != GRADE.F) {
-                return "completed (" + r.getGrade() + ")";
-            }
-        }
-        for (Enrollment e : enrollments) {
-            if (stu.getId().equals(e.getStudentId()) && subj.getId().equals(e.getSubjectId())) {
-                return "already enrolled (" + TextUtils.orEmpty(e.getSemester()) + ")";
-            }
-        }
-        String stuDept = TextUtils.orEmpty(stu.getDepartment());
-        String subjDept = TextUtils.orEmpty(subj.getDepartment());
-        if (!stuDept.isEmpty() && !subjDept.isEmpty() && !stuDept.equals(subjDept)) {
-            return "different department (" + subjDept + ")";
-        }
-        List<String> missing = new ArrayList<>();
-        if (subj.getPrerequisiteIds() != null) {
-            for (String pre : subj.getPrerequisiteIds()) {
-                boolean done = false;
-                for (AcademicRecord r : records) {
-                    if (stu.getId().equals(r.getStudentId()) && pre.equals(r.getSubjectId())
-                            && r.getGrade() != null && r.getGrade() != GRADE.F) {
-                        done = true;
-                        break;
-                    }
-                }
-                if (!done) missing.add(pre);
-            }
-        }
-        if (!missing.isEmpty()) {
-            return "missing prerequisites: " + String.join(",", missing);
-        }
-        int inSemester = enrollmentCount(subj.getId(), semester);
-        if (inSemester + 1 > subj.getMaxCapacity()) {
-            return "full (" + inSemester + "/" + subj.getMaxCapacity() + ")";
-        }
-        if (!ValidationUtils.isOfferedIn(subj, semester)) {
-            return "offered in '" + TextUtils.orEmpty(subj.getSemesterOffered()) + "'";
-        }
-        return null;
-    }
-
-    // ===== Internal helpers =====
-
-    private Student findStudent(String id) {
-        for (Student s : students) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private Subject findSubjectById(String id) {
-        for (Subject s : subjects) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private Subject findSubjectByCode(String code) {
-        for (Subject s : subjects) {
-            if (s.getCode() != null && s.getCode().equalsIgnoreCase(code.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private String subjectCode(String subjectId) {
-        Subject subj = findSubjectById(subjectId);
-        return subj == null ? subjectId : TextUtils.orEmpty(subj.getCode());
-    }
-
-    private GRADE bestGrade(String studentId, String subjectId) {
-        GRADE best = null;
-        for (AcademicRecord r : records) {
-            if (studentId.equals(r.getStudentId()) && subjectId.equals(r.getSubjectId())
-                    && r.getGrade() != null) {
-                if (best == null || r.getGrade().getGpaValue() > best.getGpaValue()) {
-                    best = r.getGrade();
-                }
-            }
-        }
-        return best;
-    }
-
-    private int enrollmentCount(String subjectId, String semester) {
-        int n = 0;
-        for (Enrollment e : enrollments) {
-            if (subjectId != null && subjectId.equals(e.getSubjectId())
-                    && semester.equals(e.getSemester())) {
-                n++;
-            }
-        }
-        return n;
     }
 }

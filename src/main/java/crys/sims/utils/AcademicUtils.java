@@ -6,13 +6,17 @@ import crys.sims.model.Subject;
 import crys.sims.model.enums.GRADE;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Shared academic calculations. Used by views now; controllers will
- * delegate here later so the math lives in exactly one place.
+ * Shared academic calculations. Controllers delegate here so the math
+ * lives in exactly one place.
  * Passing grade = anything except F (D and above pass).
+ * Retake policy: GPA averages all attempts; earned credits count each
+ * subject once no matter how many times it was passed.
  */
 public final class AcademicUtils {
 
@@ -40,10 +44,12 @@ public final class AcademicUtils {
 
     public static int calculateEarnedCredits(String studentId, List<AcademicRecord> records, List<Subject> subjects) {
         Map<String, Integer> creditsBySubject = creditsBySubject(subjects);
+        Set<String> counted = new HashSet<>();
         int total = 0;
         for (AcademicRecord r : records) {
             if (!studentId.equals(r.getStudentId())) continue;
             if (r.getGrade() == null || r.getGrade() == GRADE.F) continue;
+            if (!counted.add(r.getSubjectId())) continue;
             Integer c = creditsBySubject.get(r.getSubjectId());
             if (c != null) total += c;
         }

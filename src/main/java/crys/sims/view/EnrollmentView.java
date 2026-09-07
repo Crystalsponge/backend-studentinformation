@@ -1,22 +1,16 @@
 package crys.sims.view;
 
-import crys.sims.model.AcademicRecord;
+import crys.sims.controller.EnrollmentController;
 import crys.sims.model.Enrollment;
 import crys.sims.model.Student;
 import crys.sims.model.Subject;
 import crys.sims.model.WaitlistEntry;
-import crys.sims.service.FileService;
-import crys.sims.service.UndoRedoService;
-import crys.sims.service.WaitlistService;
 import crys.sims.utils.AcademicUtils;
 import crys.sims.utils.FormatUtils;
 import crys.sims.utils.InputUtils;
 import crys.sims.utils.TextUtils;
-import crys.sims.utils.ValidationUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,33 +18,17 @@ import java.util.Map;
 import java.util.Scanner;
 
 /**
- * Console UI for course registration: register/drop with rule validation,
- * rosters, semester statistics, waitlist, and undo/redo.
- * Temporary: talks directly to the in-memory lists + FileService.
- * An EnrollmentController will take over business logic later; this view keeps only I/O.
+ * Console UI for course registration: register/drop, rosters, semester
+ * statistics, waitlist, and undo/redo.
+ * I/O only: all business logic and persistence live in EnrollmentController.
  */
 public class EnrollmentView {
 
-    private final List<Enrollment> enrollments;
-    private final Path filePath;
-    private final List<Student> students;
-    private final List<Subject> subjects;
-    private final List<AcademicRecord> records;
-    private final WaitlistService waitlist;
-    private final UndoRedoService history;
+    private final EnrollmentController controller;
     private final Scanner scanner;
 
-    public EnrollmentView(List<Enrollment> enrollments, Path filePath,
-                          List<Student> students, List<Subject> subjects,
-                          List<AcademicRecord> records, WaitlistService waitlist,
-                          Scanner scanner) {
-        this.enrollments = enrollments;
-        this.filePath = filePath;
-        this.students = students;
-        this.subjects = subjects;
-        this.records = records;
-        this.waitlist = waitlist;
-        this.history = new UndoRedoService();
+    public EnrollmentView(EnrollmentController controller, Scanner scanner) {
+        this.controller = controller;
         this.scanner = scanner;
     }
 
@@ -63,8 +41,8 @@ public class EnrollmentView {
             System.out.println("4. Drop enrollment");
             System.out.println("5. View all enrollments");
             System.out.println("6. Semester statistics");
-            System.out.println("7. Undo" + (history.canUndo() ? "" : " (empty)"));
-            System.out.println("8. Redo" + (history.canRedo() ? "" : " (empty)"));
+            System.out.println("7. Undo" + (controller.canUndo() ? "" : " (empty)"));
+            System.out.println("8. Redo" + (controller.canRedo() ? "" : " (empty)"));
             System.out.println("9. Waitlist");
             System.out.println("0. Back");
             int choice = InputUtils.readMenuChoice(scanner, 0, 9);
@@ -84,24 +62,21 @@ public class EnrollmentView {
         }
     }
 
-    // ===== Actions =====
+    // ===== Actions (I/O only) =====
 
     private void viewByStudent() {
         String id = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(id);
+        Student stu = controller.findStudent(id);
         if (stu == null) {
             System.out.println("  Not found: " + id);
             return;
         }
         FormatUtils.printHeader("ENROLLMENTS: " + stu.getId() + " " + stu.getFullName());
-        List<Enrollment> mine = new ArrayList<>();
-        for (Enrollment e : enrollments) {
-            if (stu.getId().equals(e.getStudentId())) mine.add(e);
-        }
+        List<Enrollment> mine = controller.getByStudent(stu.getId());
         printEnrollments(mine, true);
         Map<String, Integer> creditsPerSem = new HashMap<>();
         for (Enrollment e : mine) {
-            Subject subj = findSubjectById(e.getSubjectId());
+            Subject subj = controller.findSubject(e.getSubjectId());
             int c = subj == null ? 0 : subj.getCredits();
             creditsPerSem.put(e.getSemester(), creditsPerSem.getOrDefault(e.getSemester(), 0) + c);
         }
@@ -115,13 +90,11 @@ public class EnrollmentView {
         Subject subj = readSubject();
         if (subj == null) return;
         FormatUtils.printHeader("ROSTER: " + subj.getCode() + " " + TextUtils.orEmpty(subj.getName()));
+        List<Enrollment> roster = controller.getRoster(subj.getId());
         String[] headers = {"Student", "Name", "Program", "Sem", "Date"};
         List<String[]> rows = new ArrayList<>();
-        int count = 0;
-        for (Enrollment e : enrollments) {
-            if (!subj.getId().equals(e.getSubjectId())) continue;
-            count++;
-            Student stu = findStudent(e.getStudentId());
+        for (Enrollment e : roster) {
+            Student stu = controller.findStudent(e.getStudentId());
             rows.add(new String[]{
                     e.getStudentId(),
                     stu == null ? "MISSING" : stu.getFullName(),
@@ -131,13 +104,13 @@ public class EnrollmentView {
             });
         }
         FormatUtils.printTable(headers, rows);
-        System.out.println("  Enrolled: " + count + " / " + subj.getMaxCapacity());
+        System.out.println("  Enrolled: " + roster.size() + " / " + subj.getMaxCapacity());
     }
 
     private void register() {
         FormatUtils.printHeader("REGISTER STUDENT");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(sid);
+        Student stu = controller.findStudent(sid);
         if (stu == null) {
             System.out.println("  Not found: " + sid);
             return;
@@ -147,46 +120,40 @@ public class EnrollmentView {
         String rawSem = InputUtils.readLine(scanner, "Semester [" + TextUtils.orEmpty(stu.getCurrentSemester()) + "]: ");
         String sem = rawSem.isEmpty() ? TextUtils.orEmpty(stu.getCurrentSemester()) : rawSem;
         try {
-            ValidationUtils.validateRegistration(stu.getId(), subj.getId(), sem,
-                    students, subjects, enrollments, records);
+            Enrollment e = controller.register(stu.getId(), subj.getId(), sem);
+            System.out.println("  Registered " + e.getStudentId() + " -> " + subj.getCode() + " (" + e.getSemester() + ")");
         } catch (IllegalArgumentException e) {
             System.out.println("  Cannot register: " + e.getMessage());
             if (e.getMessage() != null && e.getMessage().startsWith("Subject is full")) {
                 offerWaitlistJoin(stu, subj, sem.trim());
             }
-            return;
-        }
-        history.snapshot(enrollments);
-        enrollments.add(new Enrollment(stu.getId(), subj.getId(), sem.trim(), LocalDate.now()));
-        if (save()) {
-            System.out.println("  Registered " + stu.getId() + " -> " + subj.getCode() + " (" + sem.trim() + ")");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void drop() {
         FormatUtils.printHeader("DROP ENROLLMENT");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(sid);
+        Student stu = controller.findStudent(sid);
         if (stu == null) {
             System.out.println("  Not found: " + sid);
             return;
         }
         Subject subj = readSubject();
         if (subj == null) return;
-        List<Enrollment> matches = new ArrayList<>();
-        for (Enrollment e : enrollments) {
-            if (stu.getId().equals(e.getStudentId()) && subj.getId().equals(e.getSubjectId())) {
-                matches.add(e);
-            }
-        }
+        List<Enrollment> matches = controller.getEnrollments(stu.getId(), subj.getId());
         if (matches.isEmpty()) {
             System.out.println("  No enrollment found for " + stu.getId() + " in " + subj.getCode() + ".");
             return;
         }
-        Enrollment target = matches.get(0);
+        String sem = null;
         if (matches.size() > 1) {
             printEnrollments(matches, false);
-            String sem = InputUtils.readRequiredLine(scanner, "Multiple semesters — which semester to drop: ");
+            sem = InputUtils.readRequiredLine(scanner, "Multiple semesters — which semester to drop: ");
+        }
+        Enrollment target = matches.get(0);
+        if (sem != null) {
             target = null;
             for (Enrollment e : matches) {
                 if (sem.equalsIgnoreCase(e.getSemester())) {
@@ -205,53 +172,44 @@ public class EnrollmentView {
             System.out.println("  Cancelled.");
             return;
         }
-        history.snapshot(enrollments);
-        enrollments.remove(target);
-        if (save()) {
-            System.out.println("  Dropped " + stu.getId() + " from " + subj.getCode());
-            int waiting = waitlist.size(subj.getId(), target.getSemester());
+        try {
+            Enrollment dropped = controller.drop(stu.getId(), subj.getId(), target.getSemester());
+            System.out.println("  Dropped " + dropped.getStudentId() + " from " + subj.getCode());
+            int waiting = controller.getWaitlistSize(subj.getId(), dropped.getSemester());
             if (waiting > 0) {
-                WaitlistEntry head = waitlist.peekHead(subj.getId(), target.getSemester());
+                WaitlistEntry head = controller.peekWaitlistHead(subj.getId(), dropped.getSemester());
                 System.out.println("  " + waiting + " student(s) on waitlist (head: "
                         + (head == null ? "?" : head.getStudentId()) + ") — admit via Waitlist menu (9).");
             }
+        } catch (IllegalArgumentException e) {
+            System.out.println("  Cannot drop: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void viewAll() {
         FormatUtils.printHeader("ALL ENROLLMENTS");
-        printEnrollments(enrollments, true);
+        printEnrollments(controller.getAll(), true);
     }
 
     private void semesterStats() {
         FormatUtils.printHeader("SEMESTER STATISTICS");
         String sem = InputUtils.readLine(scanner, "Semester (empty = all): ").trim();
-        List<Enrollment> filtered = new ArrayList<>();
-        for (Enrollment e : enrollments) {
-            if (sem.isEmpty() || sem.equalsIgnoreCase(e.getSemester())) {
-                filtered.add(e);
-            }
-        }
-        Map<String, Integer> bySubject = new HashMap<>();
-        for (Enrollment e : filtered) {
-            bySubject.put(e.getSubjectId(), bySubject.getOrDefault(e.getSubjectId(), 0) + 1);
-        }
+        EnrollmentController.SemesterStats stats = controller.getSemesterStats(sem);
         String[] subHeaders = {"Subject", "Name", "Enrolled"};
         List<String[]> subRows = new ArrayList<>();
-        Map<String, Integer> byDept = new HashMap<>();
-        for (Map.Entry<String, Integer> entry : bySubject.entrySet()) {
-            Subject subj = findSubjectById(entry.getKey());
+        for (Map.Entry<String, Integer> entry : stats.bySubject.entrySet()) {
+            Subject subj = controller.findSubject(entry.getKey());
             String code = subj == null ? entry.getKey() : subj.getCode();
             String name = subj == null ? "MISSING" : TextUtils.orEmpty(subj.getName());
             subRows.add(new String[]{code, name, String.valueOf(entry.getValue())});
-            String dept = (subj == null || subj.getDepartment() == null) ? "(unknown)" : subj.getDepartment();
-            byDept.put(dept, byDept.getOrDefault(dept, 0) + entry.getValue());
         }
         System.out.println("-- By subject --");
         FormatUtils.printTable(subHeaders, subRows);
         String[] deptHeaders = {"Department", "Enrolled"};
         List<String[]> deptRows = new ArrayList<>();
-        for (Map.Entry<String, Integer> entry : byDept.entrySet()) {
+        for (Map.Entry<String, Integer> entry : stats.byDepartment.entrySet()) {
             deptRows.add(new String[]{entry.getKey(), String.valueOf(entry.getValue())});
         }
         System.out.println("-- By department --");
@@ -259,28 +217,24 @@ public class EnrollmentView {
     }
 
     private void undo() {
-        if (!history.canUndo()) {
-            System.out.println("  Nothing to undo.");
-            return;
-        }
-        List<Enrollment> prev = history.undo(enrollments);
-        enrollments.clear();
-        enrollments.addAll(prev);
-        if (save()) {
+        try {
+            controller.undo();
             System.out.println("  Undid last change.");
+        } catch (IllegalStateException e) {
+            System.out.println("  Nothing to undo.");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
     private void redo() {
-        if (!history.canRedo()) {
-            System.out.println("  Nothing to redo.");
-            return;
-        }
-        List<Enrollment> next = history.redo(enrollments);
-        enrollments.clear();
-        enrollments.addAll(next);
-        if (save()) {
+        try {
+            controller.redo();
             System.out.println("  Redid last change.");
+        } catch (IllegalStateException e) {
+            System.out.println("  Nothing to redo.");
+        } catch (IOException e) {
+            System.out.println("  Save failed: " + e.getMessage());
         }
     }
 
@@ -308,14 +262,14 @@ public class EnrollmentView {
 
     private void listWaitlist() {
         FormatUtils.printHeader("WAITLIST");
-        List<WaitlistEntry> all = waitlist.listAll();
+        List<WaitlistEntry> all = controller.getWaitlist();
         String[] headers = {"Pos", "Student", "Name", "Subject", "Sem", "Since"};
         List<String[]> rows = new ArrayList<>();
         int pos = 0;
         for (WaitlistEntry w : all) {
             pos++;
-            Student stu = findStudent(w.getStudentId());
-            Subject subj = findSubjectById(w.getSubjectId());
+            Student stu = controller.findStudent(w.getStudentId());
+            Subject subj = controller.findSubject(w.getSubjectId());
             rows.add(new String[]{
                     String.valueOf(pos),
                     w.getStudentId(),
@@ -331,7 +285,7 @@ public class EnrollmentView {
     private void joinWaitlist() {
         FormatUtils.printHeader("JOIN WAITLIST");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
-        Student stu = findStudent(sid);
+        Student stu = controller.findStudent(sid);
         if (stu == null) {
             System.out.println("  Not found: " + sid);
             return;
@@ -351,20 +305,13 @@ public class EnrollmentView {
 
     private void doJoin(Student stu, Subject subj, String semester) {
         try {
-            ValidationUtils.validateWaitlistJoin(stu.getId(), subj.getId(), semester,
-                    students, subjects, enrollments, records, waitlist.listAll());
+            WaitlistEntry entry = controller.joinWaitlist(stu.getId(), subj.getId(), semester);
+            System.out.println("  Waitlisted (#" + controller.getWaitlistSize(subj.getId(), entry.getSemester())
+                    + " for " + subj.getCode() + " " + entry.getSemester() + ")");
         } catch (IllegalArgumentException e) {
             System.out.println("  Cannot waitlist: " + e.getMessage());
-            return;
-        }
-        try {
-            waitlist.join(new WaitlistEntry(stu.getId(), subj.getId(), semester.trim(), LocalDate.now()));
-            System.out.println("  Waitlisted (#" + waitlist.size(subj.getId(), semester.trim())
-                    + " for " + subj.getCode() + " " + semester.trim() + ")");
         } catch (IOException e) {
             System.out.println("  Save failed: " + e.getMessage());
-        } catch (IllegalArgumentException e) {
-            System.out.println("  Cannot waitlist: " + e.getMessage());
         }
     }
 
@@ -373,32 +320,15 @@ public class EnrollmentView {
         Subject subj = readSubject();
         if (subj == null) return;
         String sem = InputUtils.readRequiredLine(scanner, "Semester: ");
-        WaitlistEntry head = waitlist.peekHead(subj.getId(), sem.trim());
-        if (head == null) {
-            System.out.println("  No one waiting for " + subj.getCode() + " (" + sem.trim() + ").");
-            return;
-        }
         try {
-            ValidationUtils.validateRegistration(head.getStudentId(), head.getSubjectId(), head.getSemester(),
-                    students, subjects, enrollments, records);
+            Enrollment admitted = controller.admitHead(subj.getId(), sem.trim());
+            System.out.println("  Admitted " + admitted.getStudentId() + " -> " + subj.getCode()
+                    + " (" + admitted.getSemester() + ")");
+            System.out.println("  Note: undo reverts the enrollment only; re-join the waitlist manually if needed.");
         } catch (IllegalArgumentException e) {
-            System.out.println("  Cannot admit " + head.getStudentId() + ": " + e.getMessage()
-                    + " — kept on waitlist.");
-            return;
-        }
-        history.snapshot(enrollments);
-        enrollments.add(new Enrollment(head.getStudentId(), head.getSubjectId(),
-                head.getSemester(), LocalDate.now()));
-        try {
-            waitlist.admit(subj.getId(), sem.trim());
+            System.out.println("  " + e.getMessage());
         } catch (IOException e) {
             System.out.println("  Save failed: " + e.getMessage());
-            return;
-        }
-        if (save()) {
-            System.out.println("  Admitted " + head.getStudentId() + " -> " + subj.getCode()
-                    + " (" + head.getSemester() + ")");
-            System.out.println("  Note: undo reverts the enrollment only; re-join the waitlist manually if needed.");
         }
     }
 
@@ -406,13 +336,14 @@ public class EnrollmentView {
         FormatUtils.printHeader("LEAVE WAITLIST");
         String sid = InputUtils.readRequiredLine(scanner, "Student ID: ");
         String subInput = InputUtils.readRequiredLine(scanner, "Subject ID or code: ");
-        Subject subj = findSubjectById(subInput);
-        if (subj == null) subj = findSubjectByCode(subInput);
+        Subject subj = controller.findSubject(subInput);
         String subjectId = subj == null ? subInput.trim() : subj.getId();
         String sem = InputUtils.readRequiredLine(scanner, "Semester: ");
         try {
-            boolean removed = waitlist.leave(sid.trim(), subjectId, sem.trim());
-            System.out.println(removed ? "  Removed from waitlist." : "  No matching waitlist entry.");
+            controller.leaveWaitlist(sid.trim(), subjectId, sem.trim());
+            System.out.println("  Removed from waitlist.");
+        } catch (IllegalArgumentException e) {
+            System.out.println("  " + e.getMessage());
         } catch (IOException e) {
             System.out.println("  Save failed: " + e.getMessage());
         }
@@ -426,10 +357,10 @@ public class EnrollmentView {
                 : new String[]{"Subject", "Sem", "Date"};
         List<String[]> rows = new ArrayList<>();
         for (Enrollment e : list) {
-            Subject subj = findSubjectById(e.getSubjectId());
+            Subject subj = controller.findSubject(e.getSubjectId());
             String subjShown = subj == null ? e.getSubjectId() + " MISSING" : subj.getCode();
             if (showStudent) {
-                Student stu = findStudent(e.getStudentId());
+                Student stu = controller.findStudent(e.getStudentId());
                 rows.add(new String[]{
                         e.getStudentId(),
                         stu == null ? "MISSING" : stu.getFullName(),
@@ -450,50 +381,12 @@ public class EnrollmentView {
 
     // ===== Lookup helpers =====
 
-    private Student findStudent(String id) {
-        for (Student s : students) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
     private Subject readSubject() {
         String input = InputUtils.readRequiredLine(scanner, "Subject ID or code: ");
-        Subject subj = findSubjectById(input);
-        if (subj == null) subj = findSubjectByCode(input);
+        Subject subj = controller.findSubject(input);
         if (subj == null) {
             System.out.println("  Not found: " + input);
         }
         return subj;
-    }
-
-    private Subject findSubjectById(String id) {
-        for (Subject s : subjects) {
-            if (s.getId() != null && s.getId().equalsIgnoreCase(id.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private Subject findSubjectByCode(String code) {
-        for (Subject s : subjects) {
-            if (s.getCode() != null && s.getCode().equalsIgnoreCase(code.trim())) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private boolean save() {
-        try {
-            FileService.saveEnrollments(filePath, enrollments);
-            return true;
-        } catch (IOException e) {
-            System.out.println("  Save failed: " + e.getMessage());
-            return false;
-        }
     }
 }

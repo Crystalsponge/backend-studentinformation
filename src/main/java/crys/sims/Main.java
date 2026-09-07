@@ -1,6 +1,9 @@
 package crys.sims;
 
+import crys.sims.controller.EnrollmentController;
 import crys.sims.controller.FacultyController;
+import crys.sims.controller.GradeController;
+import crys.sims.controller.TranscriptController;
 import crys.sims.controller.StudentController;
 import crys.sims.controller.SubjectController;
 import crys.sims.model.AcademicRecord;
@@ -55,8 +58,7 @@ public class Main {
                     + enrollments.size() + " enrollments, "
                     + records.size() + " records.");
 
-            // Debug wiring: views talk directly to lists + FileService.
-            // TODO: *Controller classes (business logic moves out of the views).
+            // MVC wiring: views take controllers; controllers own lists + FileService.
             Runtime.getRuntime().addShutdownHook(new Thread(() -> saveAll(
                     students, studentsPath, subjects, subjectsPath,
                     faculties, facultiesPath, departments, departmentsPath,
@@ -71,12 +73,15 @@ public class Main {
                 FacultyController facultyController = new FacultyController(faculties, facultiesPath,
                         departments, departmentsPath, subjects, enrollments);
                 FacultyView facultyView = new FacultyView(facultyController, scanner);
-                EnrollmentView enrollmentView = new EnrollmentView(enrollments, enrollmentsPath,
-                        students, subjects, records, waitlist, scanner);
-                GradeView gradeView = new GradeView(records, recordsPath,
-                        enrollments, enrollmentsPath, students, studentsPath, subjects, scanner);
-                TranscriptView transcriptView = new TranscriptView(students, subjects,
-                        records, enrollments, scanner);
+                EnrollmentController enrollmentController = new EnrollmentController(enrollments, enrollmentsPath,
+                        students, subjects, records, waitlist);
+                EnrollmentView enrollmentView = new EnrollmentView(enrollmentController, scanner);
+                GradeController gradeController = new GradeController(records, recordsPath,
+                        enrollments, enrollmentsPath, students, studentsPath, subjects);
+                GradeView gradeView = new GradeView(gradeController, scanner);
+                TranscriptController transcriptController = new TranscriptController(students, subjects,
+                        records, enrollments, enrollmentController);
+                TranscriptView transcriptView = new TranscriptView(transcriptController, scanner);
                 MainView mainView = new MainView(studentView, subjectView, facultyView,
                         enrollmentView, gradeView, transcriptView, scanner);
                 mainView.show();

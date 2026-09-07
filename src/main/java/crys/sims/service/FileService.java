@@ -98,14 +98,17 @@ public final class FileService {
     }
 
     /**
-     * Rejects delimiter characters in a user-entered field.
+     * Rejects delimiter and line-break characters in a user-entered field.
      * Views should call this on input so bad data is caught before save.
-     * @throws IllegalArgumentException if value contains DELIMITER or SUB_DELIMITER
+     * Line breaks would split one record across lines and corrupt the file.
+     * @throws IllegalArgumentException if value contains DELIMITER, SUB_DELIMITER, or line breaks
      */
     public static void checkField(String value, String fieldName) {
-        if (value != null && (value.contains(DELIMITER) || value.contains(SUB_DELIMITER))) {
+        if (value != null && (value.contains(DELIMITER) || value.contains(SUB_DELIMITER)
+                || value.contains("\n") || value.contains("\r"))) {
             throw new IllegalArgumentException(
-                    "Field '" + fieldName + "' must not contain '" + DELIMITER + "' or '" + SUB_DELIMITER + "': " + value);
+                    "Field '" + fieldName + "' must not contain '" + DELIMITER + "', '"
+                            + SUB_DELIMITER + "' or line breaks: " + value);
         }
     }
 
