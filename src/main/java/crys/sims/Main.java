@@ -24,6 +24,7 @@ import crys.sims.view.SubjectView;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.NoSuchElementException;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Scanner;
@@ -31,13 +32,13 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         // File-backed storage paths (data/ folder)
-        Path studentsPath = Paths.get("data/students.txt");
-        Path subjectsPath = Paths.get("data/subjects.txt");
-        Path facultiesPath = Paths.get("data/faculties.txt");
-        Path departmentsPath = Paths.get("data/departments.txt");
-        Path enrollmentsPath = Paths.get("data/enrollments.txt");
-        Path recordsPath = Paths.get("data/academic_records.txt");
-        Path waitlistPath = Paths.get("data/waitlist.txt");
+        Path studentsPath = Paths.get("data/students.dat");
+        Path subjectsPath = Paths.get("data/subjects.dat");
+        Path facultiesPath = Paths.get("data/faculties.dat");
+        Path departmentsPath = Paths.get("data/departments.dat");
+        Path enrollmentsPath = Paths.get("data/enrollments.dat");
+        Path recordsPath = Paths.get("data/academic_records.dat");
+        Path waitlistPath = Paths.get("data/waitlist.dat");
 
         try {
             List<Student> students = FileService.loadStudents(studentsPath);
@@ -57,7 +58,7 @@ public class Main {
                     + enrollments.size() + " enrollments, "
                     + records.size() + " records.");
 
-            // MVC wiring: views take controllers; controllers own lists + FileService.
+
             Runtime.getRuntime().addShutdownHook(new Thread(() -> saveAll(
                     students, studentsPath, subjects, subjectsPath,
                     faculties, facultiesPath, departments, departmentsPath,
@@ -92,6 +93,8 @@ public class Main {
             System.out.println("Saved on exit.");
             System.out.println("Bye.");
 
+        } catch (NoSuchElementException e) {
+            System.out.println("Input closed.");
         } catch (IOException | RuntimeException e) {
             System.out.println("Failed to load data: " + e.getMessage());
             e.printStackTrace();

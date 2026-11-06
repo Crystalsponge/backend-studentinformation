@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * One waitlist request: a student waiting for a seat in a subject offering.
- * File-backed (data/waitlist.txt); file order is arrival order (FIFO).
+ * File-backed (data/waitlist.dat); file order is arrival order (FIFO).
  */
 public class WaitlistEntry {
     private String studentId;
