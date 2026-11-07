@@ -1,4 +1,3 @@
-FROM eclipse-temurin:26-jdk AS build
 FROM eclipse-temurin:26-jdk
 WORKDIR /app
 COPY . .
